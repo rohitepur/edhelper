@@ -1,0 +1,8 @@
+{
+    "name": "Assessment Portal",
+    "short_name": "PSSA Portal",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#e9ecef",
+    "theme_color": "#004085"
+}

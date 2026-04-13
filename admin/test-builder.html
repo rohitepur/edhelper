@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Builder</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <style>
+        body { background: var(--bg-page); margin: 0; padding: 0; min-height: 100vh; }
+        .tb-header { background: var(--primary-color); color: #fff; padding: 0.6rem 1.25rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-wrap: wrap; gap: 0.4rem; }
+        .tb-header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+        .tb-header-btns { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+        .tb-header-btns .btn { padding: 0.3rem 0.7rem; font-size: 0.78rem; }
+
+        /* Two-column layout */
+        .tb-body { max-width: 1400px; margin: 0.75rem auto; padding: 0 0.75rem; display: grid; grid-template-columns: 300px 1fr; gap: 0.75rem; }
+        .tb-left { position: sticky; top: 0.75rem; align-self: start; max-height: calc(100vh - 4rem); display: flex; flex-direction: column; }
+        .tb-right { min-width: 0; }
+
+        /* Panels */
+        .tb-panel { background: var(--bg-panel); border: 1px solid var(--border-color-light); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 0.75rem; }
+        .tb-panel h3 { font-size: 0.8rem; font-weight: 700; color: var(--primary-color); text-transform: uppercase; letter-spacing: 0.3px; margin: 0 0 0.5rem; }
+
+        /* Source tabs */
+        .tb-tabs { display: flex; margin: -1rem -1rem 0.75rem; border-bottom: 2px solid var(--border-color-light); }
+        .tb-tab { flex: 1; padding: 0.45rem 0.3rem; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; border: none; background: none; cursor: pointer; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.15s, border-color 0.15s; }
+        .tb-tab:hover { color: var(--primary-color); }
+        .tb-tab.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+        .tb-tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+        .tb-tab-content.active { display: flex; }
+        .tb-tab-content.scroll { overflow-y: auto; }
+
+        /* Skill generator */
+        .tb-gen-row { display: flex; gap: 0.4rem; margin-bottom: 0.4rem; flex-wrap: wrap; align-items: flex-end; }
+        .tb-gen-row label { font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; display: block; margin-bottom: 0.15rem; }
+        .tb-gen-row select, .tb-gen-row input { padding: 0.35rem 0.5rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-size: 0.82rem; font-family: inherit; background: var(--bg-panel); color: var(--text-main); }
+        .tb-skill-search { width: 100%; padding: 0.4rem 0.6rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-size: 0.82rem; font-family: inherit; margin-bottom: 0.4rem; background: var(--bg-panel); color: var(--text-main); }
+
+        /* AI tab */
+        .tb-ai-label { font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; display: block; margin-bottom: 0.2rem; margin-top: 0.6rem; }
+        .tb-ai-input { width: 100%; padding: 0.4rem 0.6rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-size: 0.82rem; font-family: inherit; background: var(--bg-panel); color: var(--text-main); box-sizing: border-box; }
+        .tb-ai-drop { border: 2px dashed var(--border-color); border-radius: var(--radius-sm); padding: 0.75rem; text-align: center; cursor: pointer; font-size: 0.78rem; color: var(--text-secondary); transition: border-color 0.15s; margin-bottom: 0.4rem; }
+        .tb-ai-drop:hover, .tb-ai-drop.over { border-color: var(--primary-color); color: var(--primary-color); }
+        .tb-skill-list { flex: 1; overflow-y: auto; border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); min-height: 150px; }
+        .tb-skill-row { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border-color-light); font-size: 0.82rem; cursor: pointer; transition: background 0.1s; }
+        .tb-skill-row:last-child { border-bottom: none; }
+        .tb-skill-row:hover { background: var(--bg-highlight); }
+        .tb-skill-name { font-weight: 600; color: var(--text-main); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tb-skill-count { color: var(--text-secondary); font-size: 0.7rem; }
+        .tb-skill-grade { font-size: 0.6rem; color: var(--text-secondary); background: var(--bg-surface); padding: 0.1rem 0.25rem; border-radius: 3px; }
+        .tb-skill-add { padding: 0.15rem 0.45rem; font-size: 0.68rem; border: 1px solid var(--border-color); border-radius: 5px; background: var(--bg-panel); cursor: pointer; color: var(--primary-color); font-weight: 600; white-space: nowrap; }
+        .tb-skill-add:hover { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+        .tb-skill-opts { padding: 0.4rem 0.6rem 0.4rem 1.8rem; background: var(--bg-surface); border-bottom: 1px solid var(--border-color-light); display: none; flex-wrap: wrap; gap: 0.4rem; align-items: center; font-size: 0.78rem; }
+        .tb-skill-opts.open { display: flex; }
+        .tb-skill-opts select, .tb-skill-opts input[type="number"] { padding: 0.2rem 0.35rem; border: 1px solid var(--border-color); border-radius: 5px; font-size: 0.78rem; background: var(--bg-panel); }
+        .tb-skill-opts input[type="number"] { width: 50px; }
+
+        /* Paste panel */
+        .tb-paste-area { width: 100%; min-height: 80px; padding: 0.6rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-family: inherit; font-size: 0.85rem; resize: vertical; background: var(--bg-panel); color: var(--text-main); }
+
+        /* Question cards */
+        .tb-card { background: var(--bg-panel); border: 1px solid var(--border-color-light); border-radius: var(--radius-md); margin-bottom: 0.6rem; overflow: hidden; transition: box-shadow 0.15s; }
+        .tb-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .tb-card.tb-selected { border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--focus-ring); }
+        .tb-card-head { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0.75rem; background: var(--bg-surface); border-bottom: 1px solid var(--border-color-light); font-size: 0.8rem; }
+        .tb-card-left { display: flex; align-items: center; gap: 0.35rem; }
+        .tb-card-num { font-weight: 700; color: var(--primary-color); }
+        .tb-spacing-tag { font-size: 0.6rem; color: var(--text-secondary); background: var(--bg-page); padding: 0.1rem 0.3rem; border-radius: 3px; }
+        .tb-card-btns { display: flex; gap: 0.25rem; }
+        .tb-card-btns button { padding: 0.15rem 0.4rem; font-size: 0.7rem; border: 1px solid var(--border-color); border-radius: 5px; background: var(--bg-panel); cursor: pointer; color: var(--text-secondary); }
+        .tb-card-btns button:hover { background: var(--bg-highlight); border-color: var(--primary-color); color: var(--primary-color); }
+        .tb-card-btns .del:hover { background: var(--incorrect-bg); border-color: var(--incorrect); color: var(--incorrect); }
+        .tb-card-body { padding: 0.75rem; }
+        .tb-q-text { font-size: 0.9rem; line-height: 1.5; margin-bottom: 0.5rem; }
+        .tb-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
+        .tb-opt { padding: 0.35rem 0.6rem; border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); font-size: 0.82rem; }
+        .tb-opt.correct { border-color: var(--correct); background: var(--correct-bg); font-weight: 600; }
+        .tb-badges { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.4rem; flex-wrap: wrap; }
+        .tb-badge { font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 99px; font-weight: 600; }
+        .tb-badge-dyn { background: var(--primary-light); color: var(--primary-color); }
+        .tb-badge-static { background: var(--bg-surface); color: var(--text-secondary); border: 1px solid var(--border-color); }
+
+        /* Edit mode */
+        .tb-edit { padding: 0.75rem; display: none; }
+        .tb-edit.open { display: block; }
+        .tb-edit label { display: block; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; margin: 0.5rem 0 0.15rem; }
+        .tb-edit textarea, .tb-edit input[type="text"], .tb-edit input[type="number"] { width: 100%; padding: 0.4rem 0.6rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-family: inherit; font-size: 0.85rem; background: var(--bg-panel); color: var(--text-main); }
+        .tb-edit textarea { min-height: 50px; resize: vertical; }
+        .tb-opt-edit { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; }
+        .tb-opt-edit input[type="text"] { flex: 1; }
+
+        /* Preview */
+        .tb-preview-box { background: var(--bg-panel); border: 1px solid var(--border-color-light); border-radius: var(--radius-md); padding: 0.75rem; margin-bottom: 0.75rem; }
+        .tb-preview-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; }
+        .tb-preview-opt { padding: 0.3rem 0.5rem; border: 1px solid var(--border-color-light); border-radius: 6px; font-size: 0.85rem; }
+        .tb-preview-opt.correct { border-color: var(--correct); background: var(--correct-bg); font-weight: 600; }
+        .tb-preview-guide { margin-top: 0.4rem; padding: 0.4rem 0.6rem; background: var(--bg-surface); border-left: 3px solid var(--primary-color); border-radius: 0 6px 6px 0; font-size: 0.82rem; color: var(--text-secondary); }
+
+        /* Export settings */
+        .tb-exp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; margin-bottom: 0.5rem; }
+        .tb-exp-grid label { font-size: 0.65rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; display: block; margin-bottom: 0.1rem; }
+        .tb-exp-grid select, .tb-exp-grid input { width: 100%; padding: 0.3rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-size: 0.8rem; font-family: inherit; }
+        .tb-toggles { display: flex; gap: 0.5rem 1rem; flex-wrap: wrap; font-size: 0.8rem; margin-bottom: 0.5rem; }
+        .tb-toggles label { cursor: pointer; }
+
+        /* Save form */
+        .tb-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+        .tb-form-grid label { font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; display: block; margin-bottom: 0.15rem; }
+        .tb-form-grid select, .tb-form-grid input { width: 100%; padding: 0.4rem 0.6rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-size: 0.85rem; font-family: inherit; background: var(--bg-panel); color: var(--text-main); }
+
+        /* Drawing modal */
+        .tb-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: none; align-items: center; justify-content: center; }
+        .tb-modal.active { display: flex; }
+        .tb-modal-inner { background: var(--bg-panel); border-radius: var(--radius-md); padding: 1rem; max-width: 540px; width: 95%; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+        .tb-draw-bar { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.4rem; align-items: center; }
+        .tb-draw-bar button { padding: 0.2rem 0.5rem; font-size: 0.72rem; border: 1px solid var(--border-color); border-radius: 5px; background: var(--bg-panel); cursor: pointer; }
+        .tb-draw-bar button.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+        .tb-color-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border-color); cursor: pointer; }
+        .tb-color-dot.active { border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--focus-ring); }
+        #tb-draw-canvas { border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: crosshair; display: block; width: 100%; touch-action: none; }
+
+        /* Floating select bar */
+        .tb-select-bar { position: fixed; bottom: 0.75rem; left: 50%; transform: translateX(-50%); background: var(--primary-color); color: #fff; padding: 0.4rem 0.75rem; border-radius: var(--radius-full); box-shadow: 0 4px 16px rgba(0,0,0,0.2); display: none; align-items: center; gap: 0.5rem; font-size: 0.8rem; z-index: 100; }
+        .tb-select-bar.visible { display: flex; }
+        .tb-select-bar button { background: rgba(255,255,255,0.2); color: #fff; border: none; padding: 0.2rem 0.5rem; border-radius: 5px; cursor: pointer; font-size: 0.75rem; }
+
+        .tb-status { font-size: 0.8rem; }
+        .tb-status.ok { color: var(--correct); }
+        .tb-status.err { color: var(--incorrect); }
+        .tb-empty { text-align: center; padding: 2rem 1rem; color: var(--text-secondary); font-size: 0.9rem; }
+
+        @media (max-width: 900px) {
+            .tb-body { grid-template-columns: 1fr; }
+            .tb-left { position: static; max-height: none; }
+            .tb-gen { max-height: 350px; }
+        }
+        @media (max-width: 600px) {
+            .tb-opts, .tb-preview-opts { grid-template-columns: 1fr; }
+            .tb-form-grid, .tb-exp-grid { grid-template-columns: 1fr; }
+            .tb-header-btns .btn { padding: 0.25rem 0.5rem; font-size: 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="tb-header">
+    <div style="display:flex;align-items:center;gap:1rem;">
+        <h1>Test Builder</h1>
+        <a href="question-bank.html" target="_blank" style="color:rgba(255,255,255,0.85);font-size:0.78rem;text-decoration:none;padding:0.2rem 0.5rem;border:1px solid rgba(255,255,255,0.4);border-radius:5px;">Question Bank →</a>
+        <a href="index.html" style="color:rgba(255,255,255,0.75);font-size:0.75rem;text-decoration:none;">← Admin</a>
+    </div>
+    <div class="tb-header-btns">
+        <span id="tb-count" style="opacity:0.8;">0 questions</span>
+        <button class="btn" onclick="tbShowRecent()">Recent</button>
+        <button class="btn" onclick="tbLoadSavedTest()">Load Test</button>
+        <button class="btn" onclick="tbRegenerate()">Regenerate</button>
+        <button class="btn" onclick="tbAddBlankQuestion()">+ Add</button>
+        <button class="btn" onclick="tbMakeAllDynamic()">All Dynamic</button>
+        <button class="btn" onclick="tbExportPDF()">PDF</button>
+        <button class="btn" onclick="tbExportVariants()">Variants</button>
+    </div>
+</div>
+
+<!-- MAIN BODY: 2-column grid -->
+<div class="tb-body">
+
+    <!-- LEFT: Source Panel (4 tabs) -->
+    <div class="tb-left">
+        <div class="tb-panel" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+
+            <!-- Tab buttons -->
+            <div class="tb-tabs">
+                <button class="tb-tab active" id="tab-btn-templates" onclick="tbSwitchTab('templates',this)">Templates</button>
+                <button class="tb-tab" id="tab-btn-saved" onclick="tbSwitchTab('saved',this)">My Bank</button>
+                <button class="tb-tab" id="tab-btn-ai" onclick="tbSwitchTab('ai',this)">AI</button>
+                <button class="tb-tab" id="tab-btn-paste" onclick="tbSwitchTab('paste',this)">Paste</button>
+            </div>
+
+            <!-- ── Tab: Templates ── -->
+            <div id="tab-templates" class="tb-tab-content active">
+                <div class="tb-gen-row">
+                    <div style="flex:1;">
+                        <label>Grade</label>
+                        <select id="gen-grade" onchange="tbPopulateSkills()" style="width:100%;">
+                            <option value="all">All Grades</option>
+                            <option value="3">Grade 3</option><option value="4">Grade 4</option><option value="5">Grade 5</option>
+                            <option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option>
+                            <option value="algebra1">Keystone Algebra</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Qty</label>
+                        <input type="number" id="gen-qty" value="5" min="1" max="30" style="width:55px;">
+                    </div>
+                </div>
+                <div style="display:flex;gap:0.3rem;margin-bottom:0.4rem;">
+                    <button class="btn" style="padding:0.25rem 0.6rem;font-size:0.72rem;flex:1;" onclick="tbGenerateSelected()">Generate Selected</button>
+                    <button class="btn" style="padding:0.25rem 0.6rem;font-size:0.72rem;flex:1;" onclick="tbGenerateAll()">All × 1</button>
+                </div>
+                <input type="text" class="tb-skill-search" id="gen-search" placeholder="Search skills..." oninput="tbFilterSkills()">
+                <div class="tb-skill-list" id="gen-skill-list">
+                    <div class="tb-empty" style="padding:1rem;">Loading skills...</div>
+                </div>
+                <span id="gen-status" class="tb-status" style="display:block;margin-top:0.3rem;min-height:1rem;"></span>
+            </div>
+
+            <!-- ── Tab: Saved ── -->
+            <div id="tab-saved" class="tb-tab-content">
+                <div class="tb-gen-row">
+                    <select id="saved-grade" style="flex:1;" onchange="tbRenderSavedSkills()">
+                        <option value="all">All Grades</option>
+                        <option value="3">Grade 3</option><option value="4">Grade 4</option><option value="5">Grade 5</option>
+                        <option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option>
+                        <option value="algebra1">Keystone Algebra</option>
+                    </select>
+                    <select id="saved-cat" style="width:90px;" onchange="tbRenderSavedSkills()">
+                        <option value="all">All</option>
+                        <option value="pssa">PSSA</option>
+                        <option value="keystone">Keystone</option>
+                    </select>
+                </div>
+                <input type="text" class="tb-skill-search" id="saved-search" placeholder="Search saved skills..." oninput="tbRenderSavedSkills()">
+                <div class="tb-skill-list" id="saved-skill-list">
+                    <div class="tb-empty" style="padding:1rem;">Loading saved skills...</div>
+                </div>
+                <span id="saved-status" class="tb-status" style="display:block;margin-top:0.3rem;min-height:1rem;"></span>
+            </div>
+
+            <!-- ── Tab: AI ── -->
+            <div id="tab-ai" class="tb-tab-content scroll" style="gap:0;">
+                <span class="tb-ai-label">Gemini API Key</span>
+                <div style="display:flex;gap:0.3rem;margin-bottom:0.1rem;">
+                    <input type="password" id="ai-api-key" class="tb-ai-input" style="flex:1;" placeholder="Paste key — saved locally">
+                    <button class="btn" style="padding:0.25rem 0.6rem;font-size:0.72rem;white-space:nowrap;" onclick="tbSaveAIKey()">Save</button>
+                </div>
+                <a href="https://aistudio.google.com/apikey" target="_blank" style="font-size:0.68rem;color:var(--primary-color);display:block;margin-bottom:0.4rem;">Get a free key →</a>
+                <span id="ai-key-status" class="tb-status" style="font-size:0.72rem;margin-bottom:0.4rem;display:block;min-height:0.9rem;"></span>
+
+                <span class="tb-ai-label">Prompt</span>
+                <textarea id="ai-prompt" class="tb-ai-input" rows="4" style="resize:vertical;margin-bottom:0.4rem;" placeholder="e.g. Create 5 multiple choice questions about adding fractions with unlike denominators for grade 5. Include plausible wrong answer choices."></textarea>
+
+                <span class="tb-ai-label">Upload file <span style="font-weight:400;text-transform:none;">(optional — image or PDF)</span></span>
+                <div id="ai-drop-zone" class="tb-ai-drop"
+                    onclick="document.getElementById('ai-file-input').click()"
+                    ondragover="event.preventDefault();this.classList.add('over')"
+                    ondragleave="this.classList.remove('over')"
+                    ondrop="event.preventDefault();this.classList.remove('over');tbHandleAIFileDrop(event)">
+                    <span id="ai-file-label">Click or drag a file here</span>
+                </div>
+                <input type="file" id="ai-file-input" accept="image/*,.pdf" style="display:none;" onchange="tbHandleAIFileSelect(event)">
+                <button id="ai-file-clear" style="display:none;background:none;border:none;color:var(--incorrect);cursor:pointer;font-size:0.78rem;margin-bottom:0.4rem;padding:0;" onclick="tbClearAIFile()">Remove file</button>
+
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+                    <span class="tb-ai-label" style="margin:0;">Questions to generate</span>
+                    <input type="number" id="ai-qty" value="5" min="1" max="30" style="width:55px;padding:0.3rem 0.4rem;border:1.5px solid var(--border-color);border-radius:var(--radius-sm);font-size:0.82rem;background:var(--bg-panel);color:var(--text-main);">
+                </div>
+
+                <button class="btn" onclick="tbGenerateWithAI()" style="width:100%;padding:0.4rem;">Generate with AI</button>
+                <span id="ai-status" class="tb-status" style="display:block;margin-top:0.4rem;min-height:1rem;font-size:0.78rem;"></span>
+            </div>
+
+            <!-- ── Tab: Paste ── -->
+            <div id="tab-paste" class="tb-tab-content scroll">
+                <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.4rem;">Paste problems with A) B) C) D) options and an ANSWERS section.</p>
+                <textarea id="tb-paste" class="tb-paste-area" style="min-height:140px;" placeholder="1) 28.2 × 1.7&#10;A) 2.8&#10;B) 14.4&#10;C) 47.9&#10;D) 143.8&#10;&#10;ANSWERS&#10;C"></textarea>
+                <div style="display:flex;gap:0.4rem;align-items:center;margin-top:0.5rem;">
+                    <button class="btn" style="padding:0.35rem 0.8rem;font-size:0.82rem;" onclick="tbProcessPaste()">Process</button>
+                    <span id="tb-status" class="tb-status"></span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- RIGHT: Questions + Save -->
+    <div class="tb-right">
+
+        <!-- Preview (hidden by default) -->
+        <div class="tb-preview-box" id="tb-preview" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;">Live Preview</h3>
+                <button onclick="document.getElementById('tb-preview').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--text-secondary);">✕</button>
+            </div>
+            <div id="tb-preview-content" style="margin-top:0.4rem;"></div>
+        </div>
+
+        <!-- Recent (hidden by default) -->
+        <div class="tb-panel" id="tb-recent-panel" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;">Recent Tests</h3>
+                <button onclick="document.getElementById('tb-recent-panel').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--text-secondary);">✕</button>
+            </div>
+            <div id="tb-recent-list" style="margin-top:0.4rem;"><p style="color:var(--text-secondary);font-size:0.82rem;">No saved tests yet.</p></div>
+        </div>
+
+        <!-- Question list -->
+        <div id="tb-list"></div>
+
+        <!-- Save & Export panel -->
+        <div class="tb-panel" id="tb-save" style="display:none;">
+            <h3>Save Test</h3>
+            <div class="tb-form-grid">
+                <div style="grid-column:1/-1;"><label>Test Name</label><input type="text" id="tb-name" placeholder="e.g. Chapter 4 Review"></div>
+            </div>
+            <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap;">
+                <button class="btn" onclick="tbSaveTestOnly()">Save Test</button>
+                <button class="btn" style="background:var(--bg-surface);color:var(--primary-color);border:1px solid var(--primary-color);" onclick="document.getElementById('tb-assign-section').style.display=document.getElementById('tb-assign-section').style.display===''?'none':''">Assign Now ▾</button>
+            </div>
+            <div id="tb-assign-section" style="display:none;margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border-color-light);">
+                <div style="font-size:0.75rem;font-weight:700;color:var(--primary-color);text-transform:uppercase;margin-bottom:0.5rem;">Assign to</div>
+                <div class="tb-form-grid">
+                    <div><label>Assign By</label><select id="tb-assign-by" onchange="tbUpdateAssignTarget()"><option value="grade">Grade</option><option value="class">Class</option><option value="student">Student</option></select></div>
+                    <div id="tb-grade-row"><label>Grade</label><select id="tb-target-grade"><option value="3">Grade 3</option><option value="4">Grade 4</option><option value="5">Grade 5</option><option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option></select></div>
+                    <div id="tb-class-row" style="display:none;"><label>Class</label><select id="tb-target-class"><option value="3">3</option><option value="4/5">4/5</option><option value="5/6">5/6</option><option value="6">6</option><option value="6/7">6/7</option><option value="7/8">7/8</option><option value="alg1">Alg 1</option><option value="adv-alg1">Adv Alg 1</option><option value="alg2">Alg 2</option><option value="alg2-geo">Alg 2/Geo</option><option value="precalc">Precalc</option><option value="math-analysis">Math Analysis</option></select></div>
+                    <div id="tb-student-row" style="display:none;"><label>Student</label><input type="text" id="tb-target-student" placeholder="First Last"></div>
+                    <div><label>Due Date</label><input type="date" id="tb-due"></div>
+                    <div><label>Timer (min)</label><input type="number" id="tb-timer" placeholder="—" min="1" max="180"></div>
+                    <div><label style="visibility:hidden;">x</label><label style="font-size:0.82rem;text-transform:none;letter-spacing:0;cursor:pointer;"><input type="checkbox" id="tb-redemption" checked> Redemption</label></div>
+                </div>
+                <button class="btn" style="margin-top:0.5rem;" onclick="tbSaveTest()">Save & Assign</button>
+            </div>
+            <div id="tb-save-status" style="margin-top:0.4rem;font-size:0.82rem;"></div>
+
+            <!-- Save to Library -->
+            <div style="border-top:1px solid var(--border-color-light);margin-top:1rem;padding-top:0.75rem;">
+                <h3>Save to Skill Library</h3>
+                <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.6rem;">Save questions as reusable skills — they'll appear in the Generate by Skill panel for future tests.</p>
+                <div class="tb-form-grid">
+                    <div><label>Skill Name</label><input type="text" id="lib-skill-name" placeholder="e.g. Adding Fractions"></div>
+                    <div><label>Standard <span style="font-weight:normal;color:var(--text-secondary);">(optional)</span></label><input type="text" id="lib-anchor" placeholder="e.g. 4.NF.3"></div>
+                    <div><label>Category</label><select id="lib-category" onchange="tbUpdateLibGrade()"><option value="pssa">PSSA</option><option value="keystone">Keystone</option></select></div>
+                    <div><label>Grade</label><select id="lib-grade"><option value="3">Grade 3</option><option value="4">Grade 4</option><option value="5">Grade 5</option><option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option></select></div>
+                </div>
+                <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-secondary);">
+                    <label style="cursor:pointer;"><input type="radio" name="lib-which" value="selected" checked> Save selected questions only</label>
+                    &ensp;
+                    <label style="cursor:pointer;"><input type="radio" name="lib-which" value="all"> Save all questions</label>
+                </div>
+                <button class="btn" style="margin-top:0.6rem;" onclick="tbSaveToLibrary()">Save to Library</button>
+                <div id="lib-status" style="margin-top:0.4rem;font-size:0.82rem;"></div>
+            </div>
+
+            <!-- Export Settings -->
+            <div style="border-top:1px solid var(--border-color-light);margin-top:1rem;padding-top:0.75rem;">
+                <h3>Export Settings</h3>
+                <div class="tb-exp-grid">
+                    <div><label>Columns</label><select id="exp-columns"><option value="1">1 Column</option><option value="2">2 Columns</option></select></div>
+                    <div><label>Font Size</label><select id="exp-font-size"><option value="12px">Small</option><option value="14px" selected>Medium</option><option value="16px">Large</option><option value="18px">XL</option></select></div>
+                    <div><label>Margins</label><select id="exp-margins"><option value="narrow">Narrow</option><option value="normal" selected>Normal</option><option value="wide">Wide</option></select></div>
+                    <div><label>Work Space</label><select id="exp-work-height"><option value="0">None</option><option value="40px">Small</option><option value="80px" selected>Medium</option><option value="120px">Large</option><option value="180px">XL</option></select></div>
+                    <div><label>Numbering</label><select id="exp-numbering"><option value="123">1, 2, 3</option><option value="abc">a, b, c</option><option value="roman">i, ii, iii</option><option value="none">None</option></select></div>
+                    <div><label>Spacing <button onclick="tbGlobalSpace(10)" style="border:none;background:none;cursor:pointer;color:var(--primary-color);font-weight:700;">+</button><button onclick="tbGlobalSpace(-10)" style="border:none;background:none;cursor:pointer;color:var(--primary-color);font-weight:700;">−</button></label><select id="exp-spacing"><option value="compact">Compact</option><option value="normal" selected>Normal</option><option value="spacious">Spacious</option><option value="extra">Extra</option></select></div>
+                </div>
+                <div style="margin-bottom:0.5rem;"><label style="font-size:0.65rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;display:block;margin-bottom:0.1rem;">Instructions</label><textarea id="exp-instructions" placeholder="e.g. Show all work. No calculators." style="width:100%;min-height:35px;padding:0.3rem;border:1.5px solid var(--border-color);border-radius:var(--radius-sm);font-family:inherit;font-size:0.8rem;resize:vertical;"></textarea></div>
+                <div class="tb-toggles">
+                    <label><input type="checkbox" id="exp-shuffle-problems"> Shuffle</label>
+                    <label><input type="checkbox" id="exp-shuffle-choices"> Shuffle Choices</label>
+                    <label><input type="checkbox" id="exp-answer-lines"> Answer Lines</label>
+                    <label><input type="checkbox" id="exp-show-numbers" checked> Numbers</label>
+                    <label><input type="checkbox" id="exp-show-name" checked> Name</label>
+                    <label><input type="checkbox" id="exp-show-date" checked> Date</label>
+                    <label><input type="checkbox" id="exp-show-period" checked> Period</label>
+                    <label><input type="checkbox" id="exp-include-key" checked> Answer Key</label>
+                    <label><input type="checkbox" id="exp-include-solutions" checked> Solutions</label>
+                </div>
+                <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;margin-bottom:0.5rem;font-size:0.82rem;">
+                    <label style="font-weight:600;">Versions:</label>
+                    <input type="number" id="exp-version-count" value="1" min="1" max="6" style="width:45px;padding:0.25rem;border:1.5px solid var(--border-color);border-radius:var(--radius-sm);font-size:0.82rem;">
+                    <select id="exp-version-diff" style="padding:0.25rem;border:1.5px solid var(--border-color);border-radius:var(--radius-sm);font-size:0.82rem;"><option value="numbers">Diff Numbers</option><option value="order">Diff Order</option><option value="both" selected>Both</option></select>
+                </div>
+                <div style="display:flex;gap:0.4rem;">
+                    <button class="btn" onclick="tbExportPDF()">Export PDF</button>
+                    <button class="btn" onclick="tbExportDOCX()">Export DOCX</button>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- end tb-right -->
+</div><!-- end tb-body -->
+
+<!-- Floating selection toolbar -->
+<div class="tb-select-bar" id="tb-select-bar">
+    <span id="tb-select-count" style="font-weight:700;">0</span>
+    <button onclick="tbSpaceSelected(10)">+ Space</button>
+    <button onclick="tbSpaceSelected(-10)">− Space</button>
+    <button onclick="tbResetSpacing()">Reset</button>
+    <button onclick="tbSelectAll()">All</button>
+    <button onclick="tbClearSelection()">Clear</button>
+</div>
+
+<!-- Drawing Modal -->
+<div class="tb-modal" id="tb-draw-modal">
+    <div class="tb-modal-inner">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
+            <strong>Drawing Canvas</strong>
+            <button onclick="tbCloseDrawing()" style="background:none;border:none;font-size:1.1rem;cursor:pointer;color:var(--text-secondary);">✕</button>
+        </div>
+        <div class="tb-draw-bar" id="tb-draw-tools">
+            <button class="active" onclick="tbSetTool('pen',this)">Pen</button>
+            <button onclick="tbSetTool('eraser',this)">Eraser</button>
+            <span style="width:1px;height:16px;background:var(--border-color);"></span>
+            <div class="tb-color-dot active" style="background:#000;" onclick="tbSetColor('#000',this)"></div>
+            <div class="tb-color-dot" style="background:#2563eb;" onclick="tbSetColor('#2563eb',this)"></div>
+            <div class="tb-color-dot" style="background:#dc2626;" onclick="tbSetColor('#dc2626',this)"></div>
+            <div class="tb-color-dot" style="background:#16a34a;" onclick="tbSetColor('#16a34a',this)"></div>
+            <span style="width:1px;height:16px;background:var(--border-color);"></span>
+            <button onclick="tbSetWidth(2,this)" class="active">Thin</button>
+            <button onclick="tbSetWidth(4,this)">Med</button>
+            <button onclick="tbSetWidth(8,this)">Thick</button>
+            <span style="width:1px;height:16px;background:var(--border-color);"></span>
+            <button onclick="tbDrawGrid()">Grid</button>
+            <button onclick="tbClearCanvas()">Clear</button>
+        </div>
+        <canvas id="tb-draw-canvas" width="500" height="380"></canvas>
+        <div style="display:flex;gap:0.4rem;margin-top:0.5rem;">
+            <button class="btn" onclick="tbSaveDrawing()">Save</button>
+            <button class="btn" style="background:var(--text-secondary);" onclick="tbCloseDrawing()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script src="../js/firebase-config.js" type="module"></script>
+<script src="../js/utils.js"></script>
+<script src="../js/dynamic-gen.js"></script>
+<script src="../js/templates.js"></script>
+<script src="../js/extra-templates.js"></script>
+<script>
+// ===== STATE =====
+let tbQuestions = [];
+let _drawTarget = null, _drawTool = 'pen', _drawColor = '#000', _drawWidth = 2;
+let _editOpen = new Set(), _selectedQs = new Set();
+let _skillData = [], _drawListenersAttached = false, _drawing = false;
+
+// ===== SKILL NAMES =====
+const SKILL_NAMES = {
+    'Addition2Digit':'2-Digit Addition','Addition3Digit':'3-Digit Addition','Subtraction2Digit':'2-Digit Subtraction','Subtraction3Digit':'3-Digit Subtraction',
+    'MultiplyBasic':'Basic Multiplication','MultiplyBy10':'Multiply by 10/100','DivideBasic':'Basic Division','DivideWithRemainder':'Division with Remainders',
+    'PlaceValueIdentify':'Place Value','ExpandedForm':'Expanded Form','CompareLargeNumbers':'Compare Numbers','SkipCounting':'Skip Counting',
+    'FractionOfShape':'Fraction of a Shape','CompareFractions':'Compare Fractions','AddFractionsLikeDenom':'Add Fractions (Like Denom.)',
+    'PerimeterRect':'Perimeter','AreaRect':'Area of Rectangle','ArrayModel':'Array Multiplication',
+    'LongMultiplication':'Long Multiplication','Multiply3x1':'3-Digit × 1-Digit','LongDivision':'Long Division','LongDivision2Digit':'Long Division (2-Digit)',
+    'DivisionNoRemainder':'Division (No Remainder)','AddDecimals':'Add Decimals','SubtractDecimals':'Subtract Decimals',
+    'FractionToDecimal':'Fraction → Decimal','DecimalToFraction':'Decimal → Fraction','MixedToImproper':'Mixed → Improper','ImproperToMixed':'Improper → Mixed',
+    'AddFractionsDiffDenom':'Add Fractions (Unlike Denom.)','SubtractFractions':'Subtract Fractions','FactorPairs':'Factor Pairs',
+    'PrimeOrComposite':'Prime or Composite','MultiplesList':'Multiples','RoundDecimals':'Round Decimals','AngleMeasure':'Classify Angles',
+    'OrderOfOps':'Order of Operations','OrderOfOps5':'Order of Operations (PEMDAS)','InputOutputTable':'Input/Output Tables',
+    'MultiplyDecimals':'Multiply Decimals','DivideDecimals':'Divide Decimals','MultiplyFractions':'Multiply Fractions','DivideFractions':'Divide Fractions',
+    'MultiplyMixed':'Multiply Mixed Numbers','AddMixedNumbers':'Add Mixed Numbers','SubtractMixedNumbers':'Subtract Mixed Numbers',
+    'SimplifyFractions':'Simplify Fractions','FractionDecimalPercent':'Fraction ↔ Decimal ↔ %','PercentOfNumber':'Percent of a Number',
+    'DecimalPlaceValue':'Decimal Place Value','ExponentEvaluate':'Evaluate Exponents','VolumeRectPrism':'Volume (Rect. Prism)',
+    'NumericalExpressions':'Numerical Expressions','GCFFind':'GCF','LCMFind':'LCM','EquivalentFractions':'Equivalent Fractions','CompareDecimals':'Compare Decimals',
+    'IntegerAddition':'Add Integers','IntegerSubtraction':'Subtract Integers','IntegerMultiplication':'Multiply Integers','IntegerDivision':'Divide Integers',
+    'AbsoluteValueCalc':'Absolute Value','OrderIntegers':'Order Integers','RatioSimplify':'Simplify Ratios','UnitRateCalc':'Unit Rates',
+    'ProportionSolve':'Solve Proportions','PercentToDecimal':'Percent → Decimal','DecimalToPercent':'Decimal → Percent',
+    'PercentOfNumber6':'Percent of a Number','PercentChange':'Percent Change','OneStepEquationAdd':'One-Step Equations (+/−)',
+    'OneStepEquationMult':'One-Step Equations (×/÷)','OneStepInequality':'One-Step Inequalities','DistributiveProperty':'Distributive Property',
+    'CombineLikeTerms':'Combine Like Terms','AreaTriangleCalc':'Area of Triangle','AreaParallelogramCalc':'Area of Parallelogram',
+    'SurfaceAreaBox':'Surface Area','MeanCalc':'Mean','MedianCalc':'Median','ModeCalc':'Mode','RangeCalc':'Range','ExpressionEvaluate':'Evaluate Expressions',
+    'AddRational':'Add Rationals','SubtractRational':'Subtract Rationals','MultiplyRational':'Multiply Rationals','DivideRational':'Divide Rationals',
+    'ConstantOfProp':'Constant of Proportionality','PercentMarkup':'Percent Markup','PercentMarkdown':'Percent Markdown',
+    'PercentTaxCalc':'Sales Tax','PercentTipCalc':'Calculate Tip','SimpleInterest':'Simple Interest',
+    'TwoStepEquation':'Two-Step Equations','TwoStepInequality':'Two-Step Inequalities','DistributiveEquation':'Equations w/ Distribution',
+    'ComplementaryAngles':'Complementary Angles','SupplementaryAngles':'Supplementary Angles','TriangleAngleSum':'Triangle Angle Sum',
+    'CircumferenceCalc':'Circumference','CircleAreaCalc':'Circle Area','ScaleFactorCalc':'Scale Factor',
+    'ProbabilityCalc':'Probability','CompoundProbCalc':'Compound Probability',
+    'SciNotationConvert':'Sci. Notation (Convert)','SciNotationToStandard':'Sci. Notation → Standard','SciNotationMultiply':'Sci. Notation (Multiply)',
+    'ExponentProductRule':'Exponent Product Rule','ExponentQuotientRule':'Exponent Quotient Rule','ExponentPowerRule':'Exponent Power Rule',
+    'NegativeExponents':'Negative Exponents','SquareRootCalc':'Square Roots','CubeRootCalc':'Cube Roots','IrrationalApprox':'Irrational Approximation',
+    'PythagoreanCalc':'Pythagorean Theorem','PythagoreanConverse':'Pythagorean Converse',
+    'SlopeFromTwoPoints':'Slope from Points','SlopeInterceptForm':'Slope-Intercept Form','PointSlopeConvert':'Point-Slope Form',
+    'XYIntercepts':'X & Y Intercepts','ParallelSlopes':'Parallel Slopes','PerpendicularSlopes':'Perpendicular Slopes',
+    'SystemSubstitutionCalc':'Systems (Substitution)','SystemEliminationCalc':'Systems (Elimination)',
+    'FunctionEvalCalc':'Evaluate Functions','FunctionTableRule':'Function Rules','TranslateCoord':'Translations',
+    'ReflectCoord':'Reflections','DilateCoord':'Dilations','VolumeComposite':'Volume (Cyl/Cone/Sphere)',
+    'Rounding':'Rounding','Mult 10s':'Multiply Multiples of 10','Comparison':'Compare Numbers','Fraction ID':'Identify Fractions',
+    'Equivalent Fractions':'Equivalent Fractions','Whole Frac':'Whole Number Fractions','Division Exp':'Division Expressions',
+    'Prop Strategy':'Associative Property','Partition':'Partition Shapes','Polygons':'Polygon Properties',
+    'Volume Est':'Estimate Volume','Money':'Money & Change','Time':'Tell Time','Area Mult':'Area',
+    'Perimeter':'Perimeter','Data Plots':'Line Plots','UnknownFactor':'Unknown Factor','BikeFrac':'Fractions (Word)',
+    'ArrayDiv':'Division Arrays','RepeatAdd':'Repeated Addition','Pattern':'Patterns','MassEst':'Estimate Mass',
+    'Elapsed':'Elapsed Time','BarData':'Bar Graphs','FracSize':'Compare Unit Fractions','MultCtx':'Multiplication Word Problems',
+    'DivCtx':'Division Word Problems','EvenOdd':'Even or Odd','Half':'Halfway Point',
+    'Dec Frac':'Decimals & Fractions','Word Form':'Word Form','Remainders':'Remainders','Multi-Step':'Multi-Step',
+    'Frac Bench':'Compare Fractions','Frac Add':'Add Fractions','Dec Comp':'Compare Decimals',
+    'Powers 10':'Powers of 10','Coordinates':'Coordinates','Volume':'Volume','Base Area':'Volume (Base Area)',
+    'Mult Frac':'Fraction of Whole','Mixed Sub':'Subtract Mixed','Patterns':'Patterns',
+    'Div Frac':'Divide Fractions','GCF':'GCF','Comp Integers':'Compare Integers','Ratio Lang':'Ratio Language',
+    'Rate Table':'Rate Tables','Comp Rates':'Compare Rates','Equations':'Solve Equations','Variables':'Variables',
+    'Trap Area':'Trapezoid Area','Surf Area':'Surface Area','Box Plot':'Box Plots','MAD':'Mean Abs. Deviation',
+    'AbsVal':'Absolute Value','DecMult':'Multiply Decimals','Percents':'Percents','DistProp':'Distributive Property',
+    'InEq':'Inequalities','AreaTri':'Triangle Area','Mean':'Mean','Mode':'Mode',
+    'Int Add':'Add Integers','Avg Change':'Average Change','Rat Mult':'Multiply Rationals','Prop Logic':'Proportions',
+    'Unit Rate':'Unit Rates','Ratio Eq':'Ratio Equations','Scaling':'Scaling','Simplify':'Simplify Expressions',
+    'Discount':'Discounts','Scale Map':'Scale Drawings','Circle':'Circles','Angles':'Angles','Prob':'Probability',
+    'Slope':'Slope','Systems':'Systems','Comp Func':'Compare Functions','Sphere':'Sphere Volume',
+    'Roots':'Radicals','ConeVol':'Cone Volume','ExtAngle':'Exterior Angles','DistForm':'Distance Formula',
+    'Transform':'Transformations','PerfectSquare':'Perfect Squares','Sci Note':'Scientific Notation',
+    'Exponents':'Exponents','Pythag':'Pythagorean Theorem','Slope Int':'Slope-Intercept'
+};
+function skillName(t) { return SKILL_NAMES[t] || t.replace(/([A-Z])/g,' $1').replace(/(\d+)/g,' $1').trim(); }
+
+// ===== PARSE =====
+function tbParseText(raw) {
+    // Standalone Kuta/PSSA format parser
+    const lines = raw.split('\n').map(l => l.trim()).filter(l => l);
+    const questions = [];
+    let cur = null, answerSection = false, answerList = [];
+
+    const flush = () => {
+        if (cur && cur.text && cur.options.length >= 2) {
+            questions.push({ ...cur, _dynamic: false, _descriptor: null, _equation: null, _drawingDataUrl: null });
+        }
+        cur = null;
+    };
+
+    for (const line of lines) {
+        // Answer section header
+        if (/^answers?$/i.test(line)) { answerSection = true; flush(); continue; }
+
+        if (answerSection) {
+            // Could be "B" or "B, A, C" or "1. B   2. A"
+            const letters = line.match(/\b([A-D])\b/gi);
+            if (letters) answerList.push(...letters.map(l => l.toUpperCase()));
+            continue;
+        }
+
+        // New question: "1)" or "1." at start
+        const qMatch = line.match(/^(\d+)[).]\s*(.+)/);
+        if (qMatch) { flush(); cur = { text: qMatch[2], options: [], correct: '', openEnded: false, guide: '', isCustom: true }; continue; }
+
+        // Choice: "A)" or "A." or "a)"
+        const choiceMatch = line.match(/^([A-Da-d])[).]\s*(.+)/);
+        if (choiceMatch && cur) { cur.options.push(choiceMatch[1].toUpperCase() + ') ' + choiceMatch[2]); continue; }
+
+        // Continuation of question text
+        if (cur && !cur.options.length) cur.text += ' ' + line;
+    }
+    flush();
+
+    // Apply answer keys
+    answerList.forEach((letter, i) => {
+        if (!questions[i]) return;
+        const opt = questions[i].options.find(o => o.startsWith(letter + ')'));
+        if (opt) questions[i].correct = opt.replace(/^[A-D]\)\s*/, '');
+    });
+
+    // If no answer section, try to detect inline answers or leave first option as default
+    questions.forEach(q => { if (!q.correct && q.options.length) q.correct = q.options[0].replace(/^[A-D]\)\s*/, ''); });
+
+    return questions;
+}
+
+function tbProcessPaste() {
+    const raw = document.getElementById('tb-paste').value.trim();
+    if (!raw) return;
+    const st = document.getElementById('tb-status');
+    st.textContent = 'Processing...'; st.className = 'tb-status';
+    let parsed = [];
+    if (window.opener && typeof window.opener.fallbackParse === 'function') {
+        try { parsed = window.opener.fallbackParse(raw); } catch(e) {}
+    }
+    if (!parsed.length) parsed = tbParseText(raw);
+    if (!parsed.length) { st.textContent = 'No questions found — check format.'; st.className = 'tb-status err'; return; }
+    parsed.forEach(q => { q._dynamic = false; q._descriptor = null; q._equation = null; q._drawingDataUrl = null; });
+    tbQuestions = tbQuestions.concat(parsed);
+    st.textContent = parsed.length + ' question' + (parsed.length !== 1 ? 's' : '') + ' added.'; st.className = 'tb-status ok';
+    document.getElementById('tb-paste').value = '';
+    tbRender();
+}
+
+// ===== RENDER =====
+function tbRender() {
+    const list = document.getElementById('tb-list');
+    const n = tbQuestions.length;
+    document.getElementById('tb-count').textContent = n + ' question' + (n !== 1 ? 's' : '');
+    document.getElementById('tb-save').style.display = n > 0 ? '' : 'none';
+    if (!n) { list.innerHTML = '<div class="tb-empty">No questions yet. Generate from skills or paste problems.</div>'; return; }
+    const rm = typeof renderMathInHTML === 'function' ? renderMathInHTML : (x => x);
+    let html = '';
+    tbQuestions.forEach((q, i) => {
+        const isEdit = _editOpen.has(i), isSel = _selectedQs.has(i);
+        const opts = q.options || [], letters = ['A','B','C','D'];
+        let cIdx = -1;
+        opts.forEach((o, j) => { if (o.replace(/^[A-D]\)\s*/i,'').trim() === q.correct || o.includes(q.correct)) cIdx = j; });
+        const badges = (q._dynamic && q._descriptor ? '<span class="tb-badge tb-badge-dyn">Dynamic</span>' : '<span class="tb-badge tb-badge-static">Static</span>') +
+            (q._equation ? '<span class="tb-badge" style="background:#dbeafe;color:#1d4ed8;">Eq</span>' : '') +
+            (q._drawingDataUrl ? '<span class="tb-badge" style="background:#fce7f3;color:#9d174d;">Draw</span>' : '');
+        const sp = q._spacing || 16;
+
+        // Display — white-space:pre-line on .tb-q-text handles \n and <br>
+        let display = `<div class="tb-card-body" style="${isEdit ? 'display:none;' : ''}">`;
+        if (q.visualHTML) display += `<div style="margin-bottom:0.4rem;max-width:100%;overflow:hidden;text-align:center;">${q.visualHTML}</div>`;
+        display += `<div class="tb-q-text">${rm(q.text || '<em style="color:var(--text-secondary);">Empty</em>')}</div>`;
+        if (!q.openEnded && opts.length) {
+            display += '<div class="tb-opts">';
+            opts.forEach((o, j) => {
+                const letter = (o.match(/^([A-D])/)||[])[1];
+                const optVis = letter && q.optionVisuals && q.optionVisuals[letter];
+                display += `<div class="tb-opt ${j===cIdx?'correct':''}">${rm(o)}${optVis && optVis.visualHTML ? `<div style="margin-top:0.2rem;max-width:100%;overflow:hidden;">${optVis.visualHTML}</div>` : ''}</div>`;
+            });
+            display += '</div>';
+        } else if (q.openEnded) {
+            const aVis = q.answerVisual && q.answerVisual.visualHTML;
+            display += `<div style="font-size:0.82rem;color:var(--text-secondary);">Answer: <strong>${rm(q.correct)}</strong>${aVis ? `<div style="margin-top:0.2rem;max-width:100%;overflow:hidden;">${aVis}</div>` : ''}</div>`;
+        }
+        display += `<div class="tb-badges"><label style="font-size:0.78rem;cursor:pointer;display:flex;align-items:center;gap:0.2rem;"><input type="checkbox" ${q._dynamic?'checked':''} onchange="tbToggleDynamic(${i},this.checked)"> Dynamic</label>${badges}</div></div>`;
+
+        // Edit
+        let edit = `<div class="tb-edit ${isEdit?'open':''}" id="tb-edit-${i}">
+            <label>Question</label><textarea id="tb-etext-${i}">${(q.text||'').replace(/<br\s*\/?>/gi, '\n')}</textarea>`;
+        if (!q.openEnded) {
+            edit += '<label>Options (select correct)</label>';
+            for (let j=0;j<4;j++) {
+                const ot = (opts[j]||'').replace(/^[A-D]\)\s*/i,'').trim();
+                edit += `<div class="tb-opt-edit"><input type="radio" name="tb-c-${i}" ${j===cIdx?'checked':''} value="${j}"><span style="font-weight:700;width:16px;">${letters[j]})</span><input type="text" id="tb-eo-${i}-${j}" value="${ot.replace(/"/g,'&quot;')}"></div>`;
+            }
+        } else { edit += `<label>Answer</label><input type="text" id="tb-ec-${i}" value="${(q.correct||'').replace(/"/g,'&quot;')}">`; }
+        edit += `<div style="display:flex;gap:0.4rem;align-items:flex-end;margin-top:0.4rem;">
+            <div style="flex:1;"><label>Equation</label><div style="display:flex;gap:0.3rem;"><input type="text" id="tb-eq-${i}" placeholder="y = 2x + 3" value="${(q._equation||'').replace(/"/g,'&quot;')}"><button class="btn" style="padding:0.2rem 0.5rem;font-size:0.75rem;" onclick="tbPreviewEq(${i})">Render</button></div></div>
+            <div><label>Drawing</label><button class="btn" style="padding:0.2rem 0.5rem;font-size:0.75rem;" onclick="tbOpenDrawing(${i})">Draw</button></div>
+        </div>
+        <div style="margin-top:0.5rem;display:flex;align-items:center;gap:0.75rem;">
+            <button class="btn" onclick="tbApplyEdit(${i})">Done</button>
+            <label style="font-size:0.8rem;cursor:pointer;"><input type="checkbox" ${q._dynamic?'checked':''} onchange="tbToggleDynamic(${i},this.checked)"> Dynamic</label>
+        </div></div>`;
+
+        html += `<div class="tb-card ${isSel?'tb-selected':''}" id="tb-card-${i}">
+            <div class="tb-card-head">
+                <div class="tb-card-left">
+                    <input type="checkbox" ${isSel?'checked':''} onchange="tbToggleSelect(${i})" onclick="event.stopPropagation();">
+                    <span class="tb-card-num">Q${i+1}</span>
+                    <span class="tb-spacing-tag">${sp}px</span>
+                </div>
+                <div class="tb-card-btns">
+                    <button onclick="tbMove(${i},-1)" ${i===0?'disabled':''}>▲</button>
+                    <button onclick="tbMove(${i},1)" ${i===n-1?'disabled':''}>▼</button>
+                    <button onclick="tbShowPreview(${i})">Preview</button>
+                    <button onclick="tbToggleEdit(${i})">${isEdit?'Cancel':'Edit'}</button>
+                    <button class="del" onclick="tbDelete(${i})">Delete</button>
+                </div>
+            </div>${display}${edit}</div>`;
+    });
+    list.innerHTML = html;
+    // Render equation previews
+    tbQuestions.forEach((q,i) => { if (q._equation && _editOpen.has(i)) { const c = document.getElementById('tb-eq-prev-'+i); if (c) { c.style.display=''; renderEquationGraph(c,c.getContext('2d'),q._equation); } } });
+}
+
+// ===== ACTIONS =====
+function tbToggleEdit(i) { _editOpen.has(i) ? _editOpen.delete(i) : _editOpen.add(i); tbRender(); }
+function tbApplyEdit(i) {
+    const q = tbQuestions[i]; q.text = document.getElementById('tb-etext-'+i).value.trim();
+    if (!q.openEnded) {
+        const radios = document.querySelectorAll(`input[name="tb-c-${i}"]`); let ci = 0;
+        radios.forEach((r,j) => { if (r.checked) ci = j; });
+        q.options = []; for (let j=0;j<4;j++) { q.options.push(['A','B','C','D'][j]+') '+document.getElementById(`tb-eo-${i}-${j}`).value.trim()); }
+        q.correct = q.options[ci].replace(/^[A-D]\)\s*/i,'').trim();
+    } else { q.correct = document.getElementById('tb-ec-'+i).value.trim(); }
+    q._equation = document.getElementById('tb-eq-'+i).value.trim() || null;
+    if (q._dynamic) tbToggleDynamic(i, true);
+    _editOpen.delete(i); tbRender();
+}
+function tbDelete(i) { if (!confirm('Delete Q'+(i+1)+'?')) return; tbQuestions.splice(i,1); _editOpen.clear(); _selectedQs.clear(); tbRender(); }
+function tbMove(i, d) {
+    const j = i+d; if (j<0||j>=tbQuestions.length) return;
+    [tbQuestions[i],tbQuestions[j]] = [tbQuestions[j],tbQuestions[i]];
+    const nw = new Set(); _editOpen.forEach(x => nw.add(x===i?j:x===j?i:x)); _editOpen = nw; tbRender();
+}
+function tbAddBlankQuestion() {
+    const i = tbQuestions.length;
+    tbQuestions.push({ text:'',correct:'',options:['','','',''],openEnded:false,guide:'',isCustom:true,render:null,_dynamic:false,_descriptor:null,_equation:null,_drawingDataUrl:null });
+    _editOpen.add(i); tbRender();
+    document.getElementById('tb-card-'+i)?.scrollIntoView({behavior:'smooth'});
+}
+
+// ===== DYNAMIC =====
+function tbMakeAllDynamic() {
+    if (!tbQuestions.length) return; let ok=0; const fail=[];
+    tbQuestions.forEach((q,i) => {
+        if (q._dynamic&&q._descriptor){ok++;return;} q._dynamic=true;q._descriptor=null;
+        if (typeof extractNumbers==='function') {
+            const an=parseFloat((q.correct||'').replace(/[,$%]/g,''));
+            if (!isNaN(an)){const ns=extractNumbers(q.text);if(ns.length>=2){const op=detectOperation(ns,an);if(op){q._descriptor=buildDescriptor(q.text,ns,op,an);ok++;return;}}}
+            if (typeof buildCosmeticDescriptor==='function'){const c=buildCosmeticDescriptor(q.text,q.correct,q.options||[]);if(c){q._descriptor=c;ok++;return;}}
+        } q._dynamic=false; fail.push(i+1);
+    }); tbRender();
+    const s=document.getElementById('gen-status'); if(fail.length===0){s.textContent='All '+tbQuestions.length+' made dynamic';s.className='tb-status ok';}else{s.innerHTML=ok+'/'+tbQuestions.length+' dynamic — <strong>Q'+fail.join(', Q')+'</strong> could not convert';s.className='tb-status err';}
+}
+function tbMakeAllStatic() { tbQuestions.forEach(q=>{q._dynamic=false;q._descriptor=null;}); tbRender(); document.getElementById('gen-status').textContent='All static'; document.getElementById('gen-status').className='tb-status ok'; }
+function tbToggleDynamic(i, on) {
+    const q=tbQuestions[i]; q._dynamic=on; q._descriptor=null;
+    if (on && typeof extractNumbers==='function') {
+        const an=parseFloat((q.correct||'').replace(/[,$%]/g,'')); if(!isNaN(an)){const ns=extractNumbers(q.text);if(ns.length>=2){const op=detectOperation(ns,an);if(op){q._descriptor=buildDescriptor(q.text,ns,op,an);tbRender();return;}}}
+        if(typeof buildCosmeticDescriptor==='function'){const c=buildCosmeticDescriptor(q.text,q.correct,q.options||[]);if(c){q._descriptor=c;tbRender();return;}} q._dynamic=false;
+    } tbRender();
+}
+
+// ===== EQUATION =====
+function tbPreviewEq(i) { const v=document.getElementById('tb-eq-'+i).value.trim(); if(v) tbQuestions[i]._equation=v; }
+
+// ===== DRAWING =====
+function tbOpenDrawing(i) { _drawTarget=i; document.getElementById('tb-draw-modal').classList.add('active'); const c=document.getElementById('tb-draw-canvas'), ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height); if(tbQuestions[i]._drawingDataUrl){const img=new Image();img.onload=()=>ctx.drawImage(img,0,0,c.width,c.height);img.src=tbQuestions[i]._drawingDataUrl;} initDrawEvents(); }
+function tbCloseDrawing() { document.getElementById('tb-draw-modal').classList.remove('active'); _drawTarget=null; }
+function tbSaveDrawing() { if(_drawTarget===null)return; tbQuestions[_drawTarget]._drawingDataUrl=document.getElementById('tb-draw-canvas').toDataURL('image/jpeg',0.6); tbCloseDrawing(); tbRender(); }
+function tbSetTool(t,b) { _drawTool=t; document.querySelectorAll('#tb-draw-tools button').forEach(x=>{if(x.textContent==='Pen'||x.textContent==='Eraser')x.classList.remove('active');}); b.classList.add('active'); }
+function tbSetColor(c,e) { _drawColor=c; document.querySelectorAll('.tb-color-dot').forEach(x=>x.classList.remove('active')); e.classList.add('active'); }
+function tbSetWidth(w,b) { _drawWidth=w; document.querySelectorAll('#tb-draw-tools button').forEach(x=>{if(['Thin','Med','Thick'].includes(x.textContent))x.classList.remove('active');}); b.classList.add('active'); }
+function tbClearCanvas() { const c=document.getElementById('tb-draw-canvas'); c.getContext('2d').fillStyle='#fff'; c.getContext('2d').fillRect(0,0,c.width,c.height); }
+function tbDrawGrid() { const c=document.getElementById('tb-draw-canvas'),ctx=c.getContext('2d'); drawCartesianGrid(ctx,c.width,c.height,30); ctx.strokeStyle='#495057';ctx.lineWidth=1.5; ctx.beginPath();ctx.moveTo(c.width/2,0);ctx.lineTo(c.width/2,c.height);ctx.stroke(); ctx.beginPath();ctx.moveTo(0,c.height/2);ctx.lineTo(c.width,c.height/2);ctx.stroke(); }
+function initDrawEvents() {
+    if (_drawListenersAttached) return; _drawListenersAttached = true;
+    const c = document.getElementById('tb-draw-canvas');
+    function gp(e) { const r=c.getBoundingClientRect(),sx=c.width/r.width,sy=c.height/r.height; return e.touches?{x:(e.touches[0].clientX-r.left)*sx,y:(e.touches[0].clientY-r.top)*sy}:{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy}; }
+    function s(e){e.preventDefault();_drawing=true;const p=gp(e),ctx=c.getContext('2d');ctx.beginPath();ctx.moveTo(p.x,p.y);}
+    function m(e){if(!_drawing)return;e.preventDefault();const p=gp(e),ctx=c.getContext('2d');ctx.strokeStyle=_drawTool==='eraser'?'#fff':_drawColor;ctx.lineWidth=_drawTool==='eraser'?20:_drawWidth;ctx.lineCap='round';ctx.lineJoin='round';ctx.lineTo(p.x,p.y);ctx.stroke();ctx.beginPath();ctx.moveTo(p.x,p.y);}
+    function en(){_drawing=false;}
+    c.addEventListener('mousedown',s);c.addEventListener('mousemove',m);c.addEventListener('mouseup',en);c.addEventListener('mouseleave',en);
+    c.addEventListener('touchstart',s,{passive:false});c.addEventListener('touchmove',m,{passive:false});c.addEventListener('touchend',en);
+}
+
+// ===== ASSIGN =====
+function tbUpdateAssignTarget() { const v=document.getElementById('tb-assign-by').value; document.getElementById('tb-grade-row').style.display=v==='grade'?'':'none'; document.getElementById('tb-class-row').style.display=v==='class'?'':'none'; document.getElementById('tb-student-row').style.display=v==='student'?'':'none'; }
+
+let _currentTestId = null; // track test ID for saving (allows overwrite on re-save)
+
+async function tbSaveTest() {
+    if (!tbQuestions.length) return;
+    const name = document.getElementById('tb-name').value.trim() || 'Custom Test';
+    const st = document.getElementById('tb-save-status');
+    st.textContent = 'Saving…'; st.style.color = 'var(--text-secondary)';
+
+    // Build test data
+    const testId = _currentTestId || ('custom_' + Date.now());
+    _currentTestId = testId;
+    const dynQs = tbQuestions.filter(q => q._dynamic && q._descriptor);
+    const statQs = tbQuestions.filter(q => !q._dynamic || !q._descriptor);
+    const clean = statQs.map(q => ({ text: q.text, correct: q.correct, options: q.options || [], openEnded: q.openEnded || false, guide: q.guide || '', isCustom: true, _equation: q._equation || null, _drawingDataUrl: q._drawingDataUrl || null, visualHTML: q.visualHTML || '', optionVisuals: q.optionVisuals || null, answerVisual: q.answerVisual || null }));
+    const td = dynQs.length > 0
+        ? { id: testId, name, dynamic: true, descriptors: dynQs.map(q => q._descriptor), staticQuestions: clean, createdAt: new Date().toLocaleDateString() }
+        : { id: testId, name, createdAt: new Date().toLocaleDateString(), questions: clean };
+
+    // Save test to Firebase (always) + localStorage as backup
+    try {
+        let retries = 0;
+        while (typeof fbSaveCustomTest !== 'function' && retries++ < 20) await new Promise(r => setTimeout(r, 150));
+        if (typeof fbSaveCustomTest === 'function') await fbSaveCustomTest(testId, td);
+        const t = JSON.parse(localStorage.getItem('mathsite_custom_tests') || '{}');
+        t[testId] = td; localStorage.setItem('mathsite_custom_tests', JSON.stringify(t));
+    } catch(e) { console.error('Save test error:', e); }
+
+    // Build assignment
+    const by = document.getElementById('tb-assign-by').value;
+    let tk;
+    if (by === 'class') tk = 'class:' + document.getElementById('tb-target-class').value;
+    else if (by === 'student') tk = 'student:' + document.getElementById('tb-target-student').value.trim().toLowerCase();
+    else tk = 'grade:' + document.getElementById('tb-target-grade').value;
+    const item = { type: 'custom', testId, name, redemption: document.getElementById('tb-redemption').checked, assignedAt: new Date().toLocaleDateString() };
+    const due = document.getElementById('tb-due').value, timer = parseInt(document.getElementById('tb-timer').value);
+    if (due) item.dueDate = due; if (timer > 0) item.timerMinutes = timer;
+
+    // Save assignment to Firebase + localStorage
+    try {
+        let retries = 0;
+        while (typeof fbGetAssignments !== 'function' && retries++ < 20) await new Promise(r => setTimeout(r, 150));
+        let a = {};
+        if (typeof fbGetAssignments === 'function') a = await fbGetAssignments();
+        else a = JSON.parse(localStorage.getItem('mathsite_assignments') || '{}');
+        if (!a[tk]) a[tk] = [];
+        // Remove any prior assignment for this test to avoid duplicates
+        a[tk] = a[tk].filter(x => x.testId !== testId);
+        a[tk].push(item);
+        localStorage.setItem('mathsite_assignments', JSON.stringify(a));
+        if (typeof fbSaveAssignments === 'function') await fbSaveAssignments(a);
+    } catch(e) { console.error('Save assignment error:', e); }
+
+    st.innerHTML = '<span style="color:var(--correct);font-weight:600;">"' + name + '" saved & assigned!</span>';
+    tbSaveToRecent();
+}
+
+async function tbSaveTestOnly() {
+    if (!tbQuestions.length) return;
+    const name = document.getElementById('tb-name').value.trim() || 'Custom Test';
+    const st = document.getElementById('tb-save-status');
+    st.textContent = 'Saving…'; st.style.color = 'var(--text-secondary)';
+
+    const testId = _currentTestId || ('custom_' + Date.now());
+    _currentTestId = testId;
+    const dynQs = tbQuestions.filter(q => q._dynamic && q._descriptor);
+    const statQs = tbQuestions.filter(q => !q._dynamic || !q._descriptor);
+    const clean = statQs.map(q => ({ text: q.text, correct: q.correct, options: q.options || [], openEnded: q.openEnded || false, guide: q.guide || '', isCustom: true, _equation: q._equation || null, _drawingDataUrl: q._drawingDataUrl || null, visualHTML: q.visualHTML || '', optionVisuals: q.optionVisuals || null, answerVisual: q.answerVisual || null }));
+    const td = dynQs.length > 0
+        ? { id: testId, name, dynamic: true, descriptors: dynQs.map(q => q._descriptor), staticQuestions: clean, createdAt: new Date().toLocaleDateString() }
+        : { id: testId, name, createdAt: new Date().toLocaleDateString(), questions: clean };
+
+    try {
+        let retries = 0;
+        while (typeof fbSaveCustomTest !== 'function' && retries++ < 20) await new Promise(r => setTimeout(r, 150));
+        if (typeof fbSaveCustomTest === 'function') await fbSaveCustomTest(testId, td);
+        const t = JSON.parse(localStorage.getItem('mathsite_custom_tests') || '{}');
+        t[testId] = td; localStorage.setItem('mathsite_custom_tests', JSON.stringify(t));
+        st.innerHTML = '<span style="color:var(--correct);font-weight:600;">"' + name + '" saved! Assign it from Admin → Assign Test.</span>';
+    } catch(e) {
+        st.textContent = 'Save error: ' + e.message; st.style.color = 'var(--incorrect)';
+    }
+    tbSaveToRecent();
+}
+
+async function tbLoadSavedTest() {
+    let retries = 0;
+    while (typeof fbGetCustomTests !== 'function' && retries++ < 20) await new Promise(r => setTimeout(r, 150));
+    if (typeof fbGetCustomTests !== 'function') { alert('Firebase not ready.'); return; }
+    const all = await fbGetCustomTests();
+    const entries = Object.entries(all);
+    if (!entries.length) { alert('No saved tests found.'); return; }
+    const names = entries.map(([id, t], i) => `${i + 1}. ${t.name} (${(t.questions || t.staticQuestions || []).length}Q) — ${t.createdAt || ''}`).join('\n');
+    const pick = prompt('Select a test to load:\n\n' + names + '\n\nEnter the number:');
+    const idx = parseInt(pick) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= entries.length) return;
+    const [testId, testData] = entries[idx];
+    _currentTestId = testId;
+    document.getElementById('tb-name').value = testData.name || '';
+    tbQuestions = [];
+    _editOpen.clear(); _selectedQs.clear();
+    const qs = testData.questions || testData.staticQuestions || [];
+    qs.forEach(q => tbQuestions.push({ ...q, _dynamic: false, _descriptor: null, _equation: q._equation || null, _drawingDataUrl: q._drawingDataUrl || null }));
+    tbRender();
+    document.getElementById('gen-status').textContent = 'Loaded "' + testData.name + '"';
+    document.getElementById('gen-status').className = 'tb-status ok';
+}
+
+// ===== CONSTRUCT ITEM =====
+function tbConstructItem(template, difficulty) {
+    const origRand = window.rand;
+    if (difficulty && difficulty !== 'normal') {
+        window.rand = (a,b) => { const r=b-a; if(difficulty==='easy'){const nb=a+Math.max(1,Math.floor(r*0.4));return Math.floor(Math.random()*(nb-a+1))+a;} if(difficulty==='hard'){const na=a+Math.floor(r*0.5);return Math.floor(Math.random()*(b-na+1))+na;} return Math.floor(Math.random()*(b-a+1))+a; };
+    }
+    let raw; try{raw=template.gen();}finally{window.rand=origRand;}
+    const item={text:raw.q,correct:String(raw.ans),guide:raw.guide||'',render:raw.render||null,openEnded:template.openEnded||false,isCustom:true,_dynamic:false,_descriptor:null,_equation:null,_drawingDataUrl:null,_skillType:template.type};
+    if(!template.openEnded&&raw.distractors){const all=[String(raw.ans),...raw.distractors.map(String)];const u=[...new Set(all)].sort(()=>Math.random()-0.5).slice(0,4);item.options=u.map((c,i)=>String.fromCharCode(65+i)+') '+c);item.correct=String(raw.ans);}
+    return item;
+}
+
+// ===== SKILL GENERATOR =====
+function tbGetPool(grade) {
+    if(typeof extraTemplates==='undefined') return [];
+    if(grade==='algebra1') return (extraTemplates.keystone||{}).algebra1||[];
+    if(grade==='all'){let a=[];for(const g of Object.keys(extraTemplates.pssa||{}))a=a.concat(extraTemplates.pssa[g].map(t=>({...t,_grade:g})));for(const s of Object.keys(extraTemplates.keystone||{}))a=a.concat(extraTemplates.keystone[s].map(t=>({...t,_grade:'K'})));return a;}
+    return (extraTemplates.pssa||{})[grade]||[];
+}
+const GL={'3':'G3','4':'G4','5':'G5','6':'G6','7':'G7','8':'G8','K':'Alg','algebra1':'Alg'};
+
+function tbPopulateSkills() {
+    const grade=document.getElementById('gen-grade').value, pool=tbGetPool(grade), tm={};
+    pool.forEach(t=>{if(!tm[t.type])tm[t.type]={type:t.type,anchor:t.anchor||'',count:0,templates:[],grades:new Set()};tm[t.type].count++;tm[t.type].templates.push(t);tm[t.type].grades.add(t._grade||grade);});
+    _skillData=Object.values(tm).sort((a,b)=>skillName(a.type).localeCompare(skillName(b.type)));
+    tbRenderSkillList();
+}
+
+function tbRenderSkillList() {
+    const c=document.getElementById('gen-skill-list'),search=(document.getElementById('gen-search').value||'').toLowerCase(),qty=parseInt(document.getElementById('gen-qty').value)||5,grade=document.getElementById('gen-grade').value;
+    let data=_skillData;
+    if(search&&grade!=='all'){const ap=tbGetPool('all'),am={};ap.forEach(t=>{if(!am[t.type])am[t.type]={type:t.type,anchor:t.anchor||'',count:0,templates:[],grades:new Set()};am[t.type].count++;am[t.type].templates.push(t);am[t.type].grades.add(t._grade||'all');});data=Object.values(am).sort((a,b)=>skillName(a.type).localeCompare(skillName(b.type)));}
+    const f=search?data.filter(s=>{const d=skillName(s.type).toLowerCase();return d.includes(search)||s.type.toLowerCase().includes(search)||s.anchor.toLowerCase().includes(search);}):data;
+    if(!f.length){c.innerHTML='<div class="tb-empty" style="padding:0.75rem;">No skills found.</div>';return;}
+    let h='';
+    f.forEach((s,idx)=>{
+        const safe=s.type.replace(/'/g,"\\'"), dn=skillName(s.type), gt=s.grades&&s.grades.size>0&&grade==='all'?'<span class="tb-skill-grade">'+[...s.grades].map(g=>GL[g]||g).join('/')+'</span>':'';
+        h+=`<div class="tb-skill-row" onclick="tbToggleSkillOpts(${idx})">
+            <input type="checkbox" class="gen-chk" value="${s.type}" onclick="event.stopPropagation();">
+            <span class="tb-skill-name">${dn}</span>${gt}
+            <span class="tb-skill-count">(${s.count})</span>
+            <button class="tb-skill-add" onclick="event.stopPropagation();tbQuickAdd('${safe}',${idx})">+${qty}</button>
+        </div>
+        <div class="tb-skill-opts" id="so-${idx}">
+            <label style="font-weight:600;color:var(--text-secondary);">Diff:</label>
+            <select id="sd-${idx}"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select>
+            <label style="font-weight:600;color:var(--text-secondary);">Qty:</label>
+            <input type="number" id="sq-${idx}" value="${qty}" min="1" max="50">
+            <button class="tb-skill-add" onclick="tbQuickAdd('${safe}',${idx})" style="padding:0.2rem 0.5rem;">Go</button>
+        </div>`;
+    });
+    c.innerHTML=h;
+}
+
+function tbToggleSkillOpts(i) { const e=document.getElementById('so-'+i); if(e) e.classList.toggle('open'); }
+function tbFilterSkills() { tbRenderSkillList(); }
+function tbGenerateSelected() {
+    const cks=document.querySelectorAll('.gen-chk:checked'); if(!cks.length){document.getElementById('gen-status').textContent='Select skills first';document.getElementById('gen-status').className='tb-status err';return;}
+    const gq=parseInt(document.getElementById('gen-qty').value)||5; let tot=0;
+    cks.forEach(cb=>{const sk=_skillData.find(s=>s.type===cb.value);if(!sk)return;const idx=_skillData.indexOf(sk),de=document.getElementById('sd-'+idx),qe=document.getElementById('sq-'+idx),diff=de?de.value:'normal',qty=qe?parseInt(qe.value)||gq:gq;
+        for(let i=0;i<qty;i++){try{const it=tbConstructItem(sk.templates[i%sk.templates.length],diff);it._lastDifficulty=diff;tbQuestions.push(it);tot++;}catch(e){}}
+    }); tbRender(); document.getElementById('gen-status').textContent=`${tot} questions from ${cks.length} skills`; document.getElementById('gen-status').className='tb-status ok';
+}
+function tbGenerateAll() { if(!_skillData.length)tbPopulateSkills(); let t=0; _skillData.forEach(s=>{try{const it=tbConstructItem(s.templates[Math.floor(Math.random()*s.templates.length)],'normal');it._lastDifficulty='normal';tbQuestions.push(it);t++;}catch(e){}}); tbRender(); document.getElementById('gen-status').textContent=t+' questions (1 per skill)'; document.getElementById('gen-status').className='tb-status ok'; }
+function tbQuickAdd(type,idx) { const sk=_skillData.find(s=>s.type===type);if(!sk)return;const de=document.getElementById('sd-'+idx),qe=document.getElementById('sq-'+idx),diff=de?de.value:'normal',qty=qe?parseInt(qe.value)||5:5;
+    for(let i=0;i<qty;i++){try{const it=tbConstructItem(sk.templates[i%sk.templates.length],diff);it._lastDifficulty=diff;tbQuestions.push(it);}catch(e){}} tbRender(); document.getElementById('gen-status').textContent=`+${qty} ${skillName(type)} (${diff})`; document.getElementById('gen-status').className='tb-status ok'; }
+
+// ===== SELECTION & SPACING =====
+function tbToggleSelect(i){_selectedQs.has(i)?_selectedQs.delete(i):_selectedQs.add(i);tbUpdateBar();tbRender();}
+function tbSelectAll(){tbQuestions.forEach((_,i)=>_selectedQs.add(i));tbUpdateBar();tbRender();}
+function tbClearSelection(){_selectedQs.clear();tbUpdateBar();tbRender();}
+function tbSpaceSelected(d){_selectedQs.forEach(i=>{if(tbQuestions[i])tbQuestions[i]._spacing=Math.max(0,(tbQuestions[i]._spacing||16)+d);});tbRender();}
+function tbResetSpacing(){_selectedQs.forEach(i=>{if(tbQuestions[i])delete tbQuestions[i]._spacing;});tbRender();}
+function tbGlobalSpace(d){tbQuestions.forEach(q=>{q._spacing=Math.max(0,(q._spacing||16)+d);});tbRender();}
+function tbUpdateBar(){const b=document.getElementById('tb-select-bar'),n=_selectedQs.size;b.classList.toggle('visible',n>0);document.getElementById('tb-select-count').textContent=n+' selected';}
+
+// ===== EXPORT SETTINGS =====
+function getExpSettings() {
+    const g=id=>(document.getElementById(id)||{});
+    return {columns:parseInt(g('exp-columns').value)||1,fontSize:g('exp-font-size').value||'14px',spacing:g('exp-spacing').value||'normal',workHeight:g('exp-work-height').value||'80px',margins:g('exp-margins').value||'normal',numbering:g('exp-numbering').value||'123',instructions:(g('exp-instructions').value||'').trim(),shuffleProblems:!!g('exp-shuffle-problems').checked,shuffleChoices:!!g('exp-shuffle-choices').checked,answerLines:!!g('exp-answer-lines').checked,showNumbers:g('exp-show-numbers').checked!==false,showName:g('exp-show-name').checked!==false,showDate:g('exp-show-date').checked!==false,showPeriod:g('exp-show-period').checked!==false,includeKey:g('exp-include-key').checked!==false,includeSolutions:g('exp-include-solutions').checked!==false,versionCount:parseInt(g('exp-version-count').value)||1,versionDiff:g('exp-version-diff').value||'both'};
+}
+function fmtNum(i,s){if(s==='none')return '';if(s==='abc')return String.fromCharCode(97+i)+')';if(s==='roman'){const r=['i','ii','iii','iv','v','vi','vii','viii','ix','x','xi','xii','xiii','xiv','xv','xvi','xvii','xviii','xix','xx'];return (r[i]||(i+1))+'.';}return (i+1)+'.';}
+function shufArr(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+function shufOpts(opts){if(!opts||!opts.length)return opts;const cl=opts.map(o=>o.replace(/^[A-E]\)\s*/i,'').trim()),sh=shufArr(cl);return sh.map((c,i)=>['A','B','C','D'][i]+') '+c);}
+function buildStyles(s){const mm={narrow:'1.5cm',normal:'2cm',wide:'2.5cm'},sm={compact:8,normal:16,spacious:24,extra:40};
+    return `body{font-family:'Segoe UI',sans-serif;margin:${mm[s.margins]||'2cm'};color:#212529;font-size:${s.fontSize||'14px'};line-height:1.6;${s.columns>1?'column-count:'+s.columns+';column-gap:2rem;':''}}
+    h1{font-size:1.4em;margin-bottom:0.25rem;color:#2563eb;}
+    .instr{color:#444;font-size:0.9em;margin-bottom:0.75rem;padding:0.4rem 0.6rem;border:1px solid #ddd;border-radius:4px;background:#f9f9f9;}
+    .nl{color:#999;margin-bottom:1rem;border-bottom:1px solid #ccc;padding-bottom:0.75rem;}
+    .q{margin-bottom:${sm[s.spacing]||16}px;page-break-inside:avoid;break-inside:avoid;}
+    .qn{font-weight:700;display:inline;}.qt{display:inline;}
+    .os{display:grid;grid-template-columns:1fr 1fr;gap:0.2rem 1.5rem;margin:0.3rem 0 0 1.5rem;}.op{padding:0.15rem 0;}
+    .al{border-bottom:1px solid #999;height:1.5rem;margin:0.3rem 0 0 1.5rem;width:60%;}
+    .wk{border:1px solid #e0e0e0;border-radius:4px;margin:0.4rem 0 0 1.5rem;}
+    .mfrac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;font-size:0.85em;line-height:1.15;margin:0 0.15em;}
+    .mfrac-num{border-bottom:1.5px solid currentColor;padding:0 0.25em 0.1em;}.mfrac-den{padding:0.1em 0.25em 0;}
+    .msqrt{display:inline-flex;align-items:stretch;vertical-align:middle;margin:0 0.1em;}.msqrt::before{content:'\\221A';font-size:1.2em;line-height:0.9;}.msqrt-inner{border-top:2px solid currentColor;padding:0 0.2em 0 0.08em;margin-left:-0.05em;line-height:1.3;}
+    .kq{margin-bottom:0.3rem;}.kg{font-size:0.85em;color:#555;margin:0.1rem 0 0.6rem 1.5rem;padding:0.3rem 0.5rem;background:#f8f9fa;border-left:3px solid #2563eb;border-radius:0 4px 4px 0;}
+    @media print{body{margin:1.5cm;}.np{display:none;}}`;
+}
+
+// ===== EXPORT PDF =====
+function tbExportPDF() {
+    if(!tbQuestions.length) return; const s=getExpSettings(), title=document.getElementById('tb-name').value.trim()||'Test', rm=typeof renderMathInHTML==='function'?renderMathInHTML:(x=>x);
+    const meta=tbQuestions.map(q=>{if(q._skillType){const p=[];_skillData.forEach(sk=>{if(sk.type===q._skillType)p.push(...sk.templates);});if(!p.length)tbGetPool('all').filter(t=>t.type===q._skillType).forEach(t=>p.push(t));return{has:p.length>0,tpls:p,orig:q};}return{has:false,orig:q};});
+    const nv=s.versionCount||1, win=window.open('','_blank');
+    let html=`<!DOCTYPE html><html><head><title>${title}</title><style>${buildStyles(s)}</style></head><body>`;
+    for(let v=0;v<nv;v++){
+        let qs; if(v===0){qs=s.shuffleProblems?shufArr(tbQuestions):[...tbQuestions];}else{qs=meta.map(m=>{if((s.versionDiff==='numbers'||s.versionDiff==='both')&&m.has){const t=m.tpls[Math.floor(Math.random()*m.tpls.length)];return tbConstructItem(t,m.orig._lastDifficulty||'normal');}return{...m.orig};});if(s.versionDiff==='order'||s.versionDiff==='both')qs=shufArr(qs);}
+        if(v>0) html+='<div style="page-break-before:always;"></div>';
+        const vl=nv>1?'Version '+String.fromCharCode(65+v):'';
+        html+=`<h1>${title}${vl?' — '+vl:''}</h1>`;
+        if(s.instructions) html+=`<div class="instr">${s.instructions}</div>`;
+        const lines=[]; if(s.showName)lines.push('Name: ___________________________________');if(s.showDate)lines.push('Date: ______________');if(s.showPeriod)lines.push('Period: ________');
+        if(lines.length) html+=`<div class="nl">${lines.join('&emsp;&emsp;')}</div>`;
+        qs.forEach((q,i)=>{const sp=q._spacing||{compact:8,normal:16,spacious:24,extra:40}[s.spacing]||16;const num=s.showNumbers?fmtNum(i,s.numbering):'';const ops=s.shuffleChoices?shufOpts(q.options):(q.options||[]);
+            html+=`<div class="q" style="margin-bottom:${sp}px;"><span class="qn">${num}</span> <span class="qt">${rm(q.text)}</span>`;
+            if(ops.length){html+='<div class="os">';ops.forEach(o=>{html+=`<div class="op">${rm(o)}</div>`;});html+='</div>';}
+            if(s.answerLines)html+='<div class="al"></div>';
+            if(s.workHeight&&s.workHeight!=='0')html+=`<div class="wk" style="height:${s.workHeight};"></div>`;
+            html+='</div>';
+        });
+        if(s.includeKey){html+=`<div style="page-break-before:always;"><h1>Answer Key${vl?' — '+vl:''}</h1><hr style="border-color:#2563eb;margin-bottom:1rem;">`;qs.forEach((q,i)=>{const num=s.showNumbers?fmtNum(i,s.numbering):(i+1)+'.';html+=`<div class="kq"><strong>${num}</strong> ${rm(q.correct)}</div>`;if(s.includeSolutions&&q.guide)html+=`<div class="kg">${rm(q.guide)}</div>`;});html+='</div>';}
+    }
+    html+='<div class="np" style="position:fixed;top:1rem;right:1rem;"><button onclick="window.print()" style="padding:0.5rem 1.5rem;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer;">Print / Save PDF</button></div></body></html>';
+    win.document.write(html);win.document.close();
+}
+function tbExportVariants(){const e=document.getElementById('exp-version-count');if(e)e.value='3';tbExportPDF();}
+function tbExportDOCX(){if(!tbQuestions.length)return;if(typeof docx==='undefined'){alert('DOCX library not loaded.');return;}const name=document.getElementById('tb-name').value.trim()||'Test';const ch=[new docx.Paragraph({text:name,heading:docx.HeadingLevel.HEADING_1}),new docx.Paragraph({text:'Name: ___________________________________ Date: ______________ Period: ________',spacing:{after:300}})];tbQuestions.forEach((q,i)=>{ch.push(new docx.Paragraph({children:[new docx.TextRun({text:`${i+1}. ${q.text.replace(/<[^>]*>/g,'')}`,bold:true})],spacing:{before:200}}));if(q.options)q.options.forEach(o=>ch.push(new docx.Paragraph({text:'    '+o.replace(/<[^>]*>/g,''),spacing:{before:40}})));ch.push(new docx.Paragraph({text:'',spacing:{before:100,after:200}}));});ch.push(new docx.Paragraph({children:[new docx.TextRun({text:'',break:1})],pageBreakBefore:true}));ch.push(new docx.Paragraph({text:'Answer Key — '+name,heading:docx.HeadingLevel.HEADING_1}));tbQuestions.forEach((q,i)=>{ch.push(new docx.Paragraph({children:[new docx.TextRun({text:`${i+1}. `,bold:true}),new docx.TextRun({text:q.correct.replace(/<[^>]*>/g,'')})],spacing:{before:100}}));if(q.guide)ch.push(new docx.Paragraph({text:'    '+q.guide.replace(/<[^>]*>/g,''),spacing:{before:40},indent:{left:400}}));});const d=new docx.Document({sections:[{children:ch}]});docx.Packer.toBlob(d).then(b=>saveAs(b,name.replace(/[^a-z0-9]/gi,'_')+'.docx'));}
+
+// ===== PREVIEW =====
+function tbShowPreview(i){const q=tbQuestions[i];if(!q)return;const rm=typeof renderMathInHTML==='function'?renderMathInHTML:(x=>x),p=document.getElementById('tb-preview'),c=document.getElementById('tb-preview-content');let h='';if(q.visualHTML)h+=`<div style="margin-bottom:0.5rem;max-width:100%;overflow:hidden;text-align:center;">${q.visualHTML}</div>`;h+=`<div style="font-size:0.95rem;line-height:1.5;margin-bottom:0.4rem;">${rm(q.text||'')}</div>`;if(q.options&&q.options.length){h+='<div class="tb-preview-opts">';q.options.forEach(o=>{const letter=(o.match(/^([A-D])/)||[])[1],l=o.replace(/^[A-D]\)\s*/i,'').trim(),ok=l===q.correct||o.includes(q.correct);const optVis=letter&&q.optionVisuals&&q.optionVisuals[letter];h+=`<div class="tb-preview-opt ${ok?'correct':''}">${rm(o)}${optVis&&optVis.visualHTML?`<div style="margin-top:0.2rem;max-width:100%;overflow:hidden;">${optVis.visualHTML}</div>`:''}</div>`;});h+='</div>';}if(q.openEnded&&q.answerVisual&&q.answerVisual.visualHTML)h+=`<div style="margin:0.3rem 0;max-width:100%;overflow:hidden;">${q.answerVisual.visualHTML}</div>`;if(q.guide)h+=`<div class="tb-preview-guide"><strong>Solution:</strong> ${rm(q.guide)}</div>`;c.innerHTML=h;p.style.display='';}
+
+// ===== RECENT & REGENERATE =====
+function tbSaveToRecent(){if(!tbQuestions.length)return;const name=document.getElementById('tb-name').value.trim()||'Untitled',recent=JSON.parse(localStorage.getItem('tb_recent_tests')||'[]');const bp=tbQuestions.map(q=>({_skillType:q._skillType||null,_difficulty:q._lastDifficulty||'normal',text:q.text,correct:q.correct,options:q.options,guide:q.guide,openEnded:q.openEnded,isCustom:q.isCustom}));recent.unshift({name,date:new Date().toLocaleDateString(),questionCount:tbQuestions.length,blueprint:bp,id:'tb_'+Date.now()});if(recent.length>20)recent.pop();localStorage.setItem('tb_recent_tests',JSON.stringify(recent));}
+function tbShowRecent(){const p=document.getElementById('tb-recent-panel'),l=document.getElementById('tb-recent-list'),r=JSON.parse(localStorage.getItem('tb_recent_tests')||'[]');if(!r.length){l.innerHTML='<p style="color:var(--text-secondary);font-size:0.82rem;">No saved tests yet.</p>';}else{let h='';r.forEach((e,i)=>{h+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:0.35rem 0.4rem;border-bottom:1px solid var(--border-color-light);font-size:0.82rem;cursor:pointer;" onclick="tbLoadRecent(${i})"><div><strong>${e.name}</strong> <span style="color:var(--text-secondary);">(${e.questionCount}Q)</span></div><div style="color:var(--text-secondary);font-size:0.75rem;">${e.date}</div></div>`;});l.innerHTML=h;}p.style.display='';}
+function tbLoadRecent(i){const r=JSON.parse(localStorage.getItem('tb_recent_tests')||'[]'),e=r[i];if(!e)return;document.getElementById('tb-name').value=e.name;tbQuestions=[];_editOpen.clear();e.blueprint.forEach(bp=>{if(bp._skillType){const ap=tbGetPool('all'),m=ap.filter(t=>t.type===bp._skillType);if(m.length){const it=tbConstructItem(m[Math.floor(Math.random()*m.length)],bp._difficulty||'normal');it._lastDifficulty=bp._difficulty;tbQuestions.push(it);return;}}tbQuestions.push({...bp,_dynamic:false,_descriptor:null,_equation:null,_drawingDataUrl:null});});tbRender();document.getElementById('tb-recent-panel').style.display='none';document.getElementById('gen-status').textContent='Loaded "'+e.name+'" with fresh numbers';document.getElementById('gen-status').className='tb-status ok';}
+function tbRegenerate(){if(!tbQuestions.length)return;let n=0;tbQuestions.forEach((q,i)=>{if(q._skillType){const ap=tbGetPool('all'),m=ap.filter(t=>t.type===q._skillType);if(m.length){const it=tbConstructItem(m[Math.floor(Math.random()*m.length)],q._lastDifficulty||'normal');it._skillType=q._skillType;it._lastDifficulty=q._lastDifficulty;it._dynamic=q._dynamic;it._descriptor=q._descriptor;tbQuestions[i]=it;n++;}}});tbRender();document.getElementById('gen-status').textContent=`Regenerated ${n}/${tbQuestions.length} with new numbers`;document.getElementById('gen-status').className='tb-status ok';}
+
+// ===== TAB SWITCHING =====
+function tbSwitchTab(name, btn) {
+    document.querySelectorAll('.tb-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tb-tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+    if (name === 'saved') tbLoadSavedTab();
+    if (name === 'ai') tbInitAIKey();
+}
+
+// ===== SAVED SKILLS TAB =====
+let _savedSkillsCache = null;
+
+async function tbLoadSavedTab() {
+    if (typeof fbGetCustomSkills !== 'function') {
+        document.getElementById('saved-skill-list').innerHTML = '<div class="tb-empty" style="padding:1rem;">Firebase not ready — try again.</div>';
+        return;
+    }
+    if (!_savedSkillsCache) {
+        document.getElementById('saved-skill-list').innerHTML = '<div class="tb-empty" style="padding:1rem;">Loading...</div>';
+        try {
+            const raw = await fbGetCustomSkills();
+            _savedSkillsCache = Object.entries(raw).map(([id, s]) => ({ id, ...s }));
+        } catch(e) {
+            document.getElementById('saved-skill-list').innerHTML = '<div class="tb-empty" style="padding:1rem;">Error loading skills.</div>';
+            return;
+        }
+    }
+    tbRenderSavedSkills();
+}
+
+function tbRenderSavedSkills() {
+    const list = document.getElementById('saved-skill-list');
+    if (!_savedSkillsCache) { tbLoadSavedTab(); return; }
+    const grade = document.getElementById('saved-grade').value;
+    const cat = document.getElementById('saved-cat').value;
+    const search = (document.getElementById('saved-search').value || '').toLowerCase();
+    let skills = _savedSkillsCache;
+    if (grade !== 'all') skills = skills.filter(s => s.grade === grade);
+    if (cat !== 'all') skills = skills.filter(s => (s.category || 'pssa') === cat);
+    if (search) skills = skills.filter(s => {
+        const haystack = ((s.name || s.type || '') + ' ' + (s.questionText || '')).toLowerCase();
+        return haystack.includes(search);
+    });
+    if (!skills.length) {
+        list.innerHTML = '<div class="tb-empty" style="padding:1rem;">No saved templates. <a href="question-bank.html" target="_blank" style="color:var(--primary-color);">Open Question Bank →</a></div>';
+        return;
+    }
+    const gradeLabel = g => g === 'algebra1' ? 'Alg1' : 'G' + g;
+    list.innerHTML = skills.map(s => {
+        const displayName = s.name || skillName(s.type) || s.type || 'Untitled';
+        const qCount = (s.questions && s.questions.length) || 1;
+        const firstQ = (s.questions && s.questions[0]) ? s.questions[0].text : (s.questionText || '');
+        const preview = (firstQ || '').replace(/<[^>]+>/g, '').slice(0, 55) + ((firstQ || '').length > 55 ? '…' : '');
+        const tag = `<span class="tb-skill-grade">${gradeLabel(s.grade || '?')} · ${(s.category || 'pssa').toUpperCase()}</span>`;
+        return `<div class="tb-skill-row" style="flex-direction:column;align-items:flex-start;gap:0.15rem;cursor:default;">
+            <div style="display:flex;align-items:center;gap:0.4rem;width:100%;">
+                <span class="tb-skill-name">${displayName}</span>
+                ${tag}
+                <span class="tb-skill-count">${qCount}Q</span>
+                <button class="tb-skill-add" onclick="tbAddSavedToTest('${s.id}')">+ Add</button>
+            </div>
+            ${preview ? `<div style="font-size:0.7rem;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;">${preview}</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function tbAddSavedToTest(id) {
+    const skill = (_savedSkillsCache || []).find(s => s.id === id);
+    if (!skill) return;
+    const letters = ['A','B','C','D'];
+
+    // New format: skill has a questions[] array
+    if (skill.questions && skill.questions.length) {
+        let added = 0;
+        skill.questions.forEach(q => {
+            // options may already be formatted as "A) ..." or just raw values
+            let opts = q.options || [];
+            // If options aren't letter-prefixed, reformat
+            if (opts.length && !opts[0].match(/^[A-D]\)/)) {
+                opts = opts.map((o, i) => letters[i] + ') ' + o);
+            }
+            const item = {
+                text: q.text || q.questionHTML || '',
+                correct: q.correct || '',
+                options: opts,
+                openEnded: !!q.openEnded,
+                guide: q.guide || '',
+                isCustom: true,
+                visualHTML: q.visualHTML || '',
+                optionVisuals: q.optionVisuals || null,
+                answerVisual: q.answerVisual || null,
+                _dynamic: false, _descriptor: null, _equation: null, _drawingDataUrl: null,
+                _skillType: skill.type, _savedId: id
+            };
+            tbQuestions.push(item);
+            added++;
+        });
+        tbRender();
+        const displayName = skill.name || skillName(skill.type) || skill.type;
+        document.getElementById('saved-status').textContent = `Added ${added}Q from "${displayName}"`;
+        document.getElementById('saved-status').className = 'tb-status ok';
+        return;
+    }
+
+    // Legacy format: single question fields
+    const opts = skill.openEnded ? [] : [skill.answerText, ...(skill.distractorTexts || [])].filter(Boolean);
+    const shuffled = opts.sort(() => Math.random() - 0.5);
+    const item = {
+        text: skill.questionHTML || skill.questionText || '',
+        correct: skill.answerText || '',
+        options: skill.openEnded ? [] : shuffled.slice(0, 4).map((o, i) => letters[i] + ') ' + o),
+        openEnded: !!skill.openEnded,
+        guide: skill.guideText || '',
+        isCustom: true,
+        _dynamic: false, _descriptor: null, _equation: null, _drawingDataUrl: null,
+        _skillType: skill.type, _savedId: id
+    };
+    tbQuestions.push(item);
+    tbRender();
+    const displayName = skill.name || skillName(skill.type) || skill.type;
+    document.getElementById('saved-status').textContent = `Added "${displayName}"`;
+    document.getElementById('saved-status').className = 'tb-status ok';
+}
+
+// ===== AI TAB =====
+let _aiFileBase64 = null, _aiFileMime = null, _aiFileIsDoc = false;
+
+
+function tbHandleAIFileSelect(e) { if (e.target.files[0]) tbLoadAIFile(e.target.files[0]); }
+function tbHandleAIFileDrop(e) { if (e.dataTransfer.files[0]) tbLoadAIFile(e.dataTransfer.files[0]); }
+
+function tbLoadAIFile(file) {
+    const label = document.getElementById('ai-file-label');
+    const clearBtn = document.getElementById('ai-file-clear');
+    _aiFileMime = file.type;
+    _aiFileIsDoc = file.type === 'application/pdf';
+    const reader = new FileReader();
+    reader.onload = e => {
+        _aiFileBase64 = e.target.result.replace(/^data:[^;]+;base64,/, '');
+        label.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+        clearBtn.style.display = '';
+        document.getElementById('ai-drop-zone').style.borderColor = 'var(--correct)';
+    };
+    reader.readAsDataURL(file);
+}
+
+function tbClearAIFile() {
+    _aiFileBase64 = null; _aiFileMime = null; _aiFileIsDoc = false;
+    document.getElementById('ai-file-label').textContent = 'Click or drag a file here';
+    document.getElementById('ai-file-clear').style.display = 'none';
+    document.getElementById('ai-drop-zone').style.borderColor = '';
+    document.getElementById('ai-file-input').value = '';
+}
+
+function tbInitAIKey() {
+    const stored = localStorage.getItem('mathsite_gemini_key');
+    if (stored) {
+        document.getElementById('ai-api-key').value = stored;
+        document.getElementById('ai-key-status').textContent = 'Key loaded.';
+        document.getElementById('ai-key-status').className = 'tb-status ok';
+    }
+}
+
+function tbSaveAIKey() {
+    const key = document.getElementById('ai-api-key').value.trim();
+    const st = document.getElementById('ai-key-status');
+    if (key) { localStorage.setItem('mathsite_gemini_key', key); st.textContent = 'Saved.'; st.className = 'tb-status ok'; }
+    else { localStorage.removeItem('mathsite_gemini_key'); st.textContent = 'Cleared.'; st.className = 'tb-status'; }
+}
+
+async function tbGenerateWithAI() {
+    const st = document.getElementById('ai-status');
+    const apiKey = document.getElementById('ai-api-key').value.trim() || localStorage.getItem('mathsite_gemini_key') || '';
+    if (!apiKey) { st.textContent = 'Enter a Gemini API key first.'; st.className = 'tb-status err'; return; }
+    const prompt = document.getElementById('ai-prompt').value.trim();
+    const qty = parseInt(document.getElementById('ai-qty').value) || 5;
+    if (!prompt && !_aiFileBase64) { st.textContent = 'Enter a prompt or upload a file.'; st.className = 'tb-status err'; return; }
+
+    st.textContent = 'Generating…'; st.className = 'tb-status';
+
+    const systemInstruction = `You are a math teacher creating ${qty} multiple choice questions. Output ONLY in this exact format with no extra text:
+
+1) [question text]
+A) [option]
+B) [option]
+C) [option]
+D) [option]
+
+[continue for all questions]
+
+ANSWERS
+[letter for Q1], [letter for Q2], ...
+
+Rules:
+- Write fractions as 3/8 or 1/2
+- Use × for multiply, ÷ for divide, ² for squared, √ for square root
+- Make wrong answers plausible
+- One correct answer per question`;
+
+    const userText = prompt || `Extract and create ${qty} math questions from the provided file.`;
+    const parts = [];
+    if (_aiFileBase64) parts.push({ inlineData: { mimeType: _aiFileMime, data: _aiFileBase64 } });
+    parts.push({ text: systemInstruction + '\n\n' + userText });
+
+    try {
+        const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contents: [{ parts }] }) }
+        );
+        if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || 'API error ' + res.status); }
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!text) throw new Error('Empty response from AI.');
+
+        const parsed = tbParseText(text);
+        if (!parsed.length) { st.textContent = 'AI responded but no questions were parsed. Check format.'; st.className = 'tb-status err'; return; }
+        parsed.forEach(q => tbQuestions.push(q));
+        st.textContent = `Added ${parsed.length} question${parsed.length !== 1 ? 's' : ''} from AI.`;
+        st.className = 'tb-status ok';
+        tbRender();
+    } catch(e) {
+        st.textContent = 'Error: ' + e.message;
+        st.className = 'tb-status err';
+    }
+}
+
+// ===== SAVE TO LIBRARY =====
+function tbUpdateLibGrade() {
+    const cat = document.getElementById('lib-category').value;
+    const gradeEl = document.getElementById('lib-grade');
+    if (cat === 'keystone') {
+        gradeEl.innerHTML = '<option value="algebra1">Algebra 1</option>';
+    } else {
+        gradeEl.innerHTML = '<option value="3">Grade 3</option><option value="4">Grade 4</option><option value="5">Grade 5</option><option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option>';
+    }
+}
+
+async function tbSaveToLibrary() {
+    const status = document.getElementById('lib-status');
+    const skillName = document.getElementById('lib-skill-name').value.trim();
+    if (!skillName) { status.textContent = 'Enter a skill name.'; status.style.color = 'var(--incorrect)'; return; }
+
+    const which = document.querySelector('input[name="lib-which"]:checked').value;
+    const qs = which === 'selected'
+        ? tbQuestions.filter((_, i) => _selectedQs.has(i))
+        : tbQuestions;
+
+    if (!qs.length) { status.textContent = which === 'selected' ? 'Select questions first (use checkboxes).' : 'No questions to save.'; status.style.color = 'var(--incorrect)'; return; }
+
+    if (typeof fbSaveCustomSkill !== 'function') { status.textContent = 'Firebase not ready — try again in a moment.'; status.style.color = 'var(--incorrect)'; return; }
+
+    const category = document.getElementById('lib-category').value;
+    const grade = document.getElementById('lib-grade').value;
+    const anchor = document.getElementById('lib-anchor').value.trim();
+    const type = skillName.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join('');
+
+    status.textContent = `Saving ${qs.length} question${qs.length !== 1 ? 's' : ''}...`; status.style.color = 'var(--text-secondary)';
+
+    let saved = 0;
+    for (const q of qs) {
+        const opts = q.options || [];
+        const distractors = opts.map(o => o.replace(/^[A-D]\)\s*/i, '').trim()).filter(o => o !== q.correct);
+        const id = 'skill_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+        const skillData = {
+            type,
+            anchor: anchor || '',
+            category,
+            grade,
+            openEnded: !!q.openEnded,
+            dynamic: !!(q._dynamic && q._descriptor),
+            questionText: q.text || '',
+            questionHTML: q.text || '',
+            answerText: q.correct || '',
+            distractorTexts: q.openEnded ? [] : distractors,
+            guideText: q.guide || (q.correct ? `The correct answer is: ${q.correct}.` : ''),
+            updatedAt: new Date().toISOString()
+        };
+        try { await fbSaveCustomSkill(id, skillData); saved++; } catch(e) { console.error('Failed to save question to library:', e); }
+    }
+
+    if (saved === qs.length) {
+        status.textContent = `Saved ${saved} question${saved !== 1 ? 's' : ''} to "${skillName}" in ${category === 'keystone' ? 'Keystone' : 'PSSA Grade ' + grade}!`;
+        status.style.color = 'var(--correct)';
+        document.getElementById('lib-skill-name').value = '';
+        document.getElementById('lib-anchor').value = '';
+        // Reload skill pool so new skills appear immediately
+        if (typeof loadCustomSkillsIntoPool === 'function') { await loadCustomSkillsIntoPool(); tbPopulateSkills(); }
+        // Also refresh saved skills cache so My Bank tab shows the new entry
+        _savedSkillsCache = null;
+    } else {
+        status.textContent = `Saved ${saved}/${qs.length} — some failed (check console).`;
+        status.style.color = 'var(--incorrect)';
+    }
+}
+
+// ===== LOAD CUSTOM SKILLS FROM FIREBASE =====
+async function loadCustomSkillsIntoPool() {
+    if (typeof fbGetCustomSkills !== 'function' || typeof extraTemplates === 'undefined') return;
+    try {
+        const skills = await fbGetCustomSkills();
+        Object.entries(skills).forEach(([id, skill]) => {
+            const cat = skill.category || 'pssa';
+            const grade = skill.grade || '3';
+            if (!extraTemplates[cat]) extraTemplates[cat] = {};
+            if (!extraTemplates[cat][grade]) extraTemplates[cat][grade] = [];
+            // Don't add duplicates on re-init
+            if (extraTemplates[cat][grade].some(t => t._customId === id)) return;
+            // Use the dynamic generator from app.js if available
+            var template;
+            if (typeof buildGeneratorFromSkill === 'function') {
+                template = buildGeneratorFromSkill(skill);
+            } else {
+                template = {
+                    type: skill.type, anchor: skill.anchor || '', openEnded: !!skill.openEnded, _isCustom: true,
+                    gen: function() { return { q: skill.questionHTML || skill.questionText || '', ans: skill.answerText || '', distractors: skill.openEnded ? [] : (skill.distractorTexts || []), guide: skill.guideText || '' }; }
+                };
+            }
+            template._customId = id;
+            extraTemplates[cat][grade].push(template);
+        });
+    } catch(e) { console.warn('Could not load custom skills:', e); }
+}
+
+// ===== INIT =====
+tbRender();
+(function initSkills(){
+    if(typeof extraTemplates!=='undefined'){
+        // Load custom skills first, then populate
+        if(typeof fbGetCustomSkills==='function'){
+            loadCustomSkillsIntoPool().then(()=>tbPopulateSkills());
+        } else {
+            // Firebase not ready yet, wait for it
+            let attempts=0;
+            (function waitFB(){
+                if(typeof fbGetCustomSkills==='function'){loadCustomSkillsIntoPool().then(()=>tbPopulateSkills());}
+                else if(attempts++<30){setTimeout(waitFB,200);}
+                else{tbPopulateSkills();}
+            })();
+        }
+    } else {setTimeout(initSkills,100);}
+})();
+</script>
+</body>
+</html>

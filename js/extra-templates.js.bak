@@ -1,0 +1,1796 @@
+/**
+ * PSSA DYNAMIC ENGINE
+ * All numerical problems are randomized and computed.
+ * Guide uses template literals to show step-by-step logic with the generated numbers.
+ */
+
+// Helper: Convert two-digit numbers to words for Word Form questions
+function numberToWord(n) {
+    const ones = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+                  "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+                  "seventeen", "eighteen", "nineteen"];
+    const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+    if (n < 20) return ones[n];
+    if (n % 10 === 0) return tens[Math.floor(n / 10)];
+    return tens[Math.floor(n / 10)] + "-" + ones[n % 10];
+}
+
+const extraTemplates = {
+    pssa: {
+        3: [
+            { type: "Rounding", anchor: "Round whole numbers to the nearest 10 or 100.", openEnded: false, gen: () => {
+                const num = rand(101, 4999); const target = rand(0, 1) ? 10 : 100;
+                const ans = target === 10 ? Math.round(num/10)*10 : Math.round(num/100)*100;
+                return {
+                    q: `Round ${num} to the nearest ${target}.`,
+                    ans: ans.toString(),
+                    distractors: [(ans+target).toString(), (ans-target).toString(), (num < 500 ? ans+100 : ans-10).toString()],
+                    guide: `Look at the digit to the right of the ${target}s place. Since it is ${Math.floor((num % target) / (target/10))}, you round ${num % target >= target/2 ? 'up' : 'down'}.`
+                };
+            }},
+            { type: "Mult 10s", anchor: "Multiply 1-digit numbers by multiples of 10.", openEnded: false, gen: () => {
+                const a = rand(2, 12); const bBase = rand(2, 12); const b = bBase * 10; const ans = a * b;
+                return {
+                    q: `James makes ${b} bookmarks. He uses ${a} inches of ribbon for each. How many inches does he use in total?`,
+                    ans: ans.toString(),
+                    distractors: [(a + b).toString(), (a * bBase).toString(), (ans + 10).toString()],
+                    guide: `Multiply ${a} × ${bBase} = ${a*bBase}. Then append the zero from the 10s place to get ${ans}.`
+                };
+            }},
+            { type: "Comparison", anchor: "Compare two four-digit numbers.", openEnded: false, gen: () => {
+                const low = rand(1100, 4500); const high = rand(low + 1000, 9900); const mid = rand(low + 100, high - 100);
+                return {
+                    q: `Winner: ${high} points. 3rd Place: ${low} points. How many points could 2nd place have?`,
+                    ans: mid.toString(),
+                    distractors: [(low - 50).toString(), (high + 50).toString(), (high + 100).toString()],
+                    guide: `The answer must be greater than ${low} and less than ${high}. ${mid} is the only value that fits.`
+                };
+            }},
+            { type: "Fraction ID", anchor: "Identify fractions on a number line.", openEnded: false, gen: () => {
+                const d = rand(2, 12);
+                return { q: `A number line from 0 to 1 is divided into ${d} equal parts. What does the first mark represent?`, ans: `1/${d}`, distractors: [`1/2`, `${d}/1`, `2/${d}`], guide: `One part out of ${d} total parts is 1/${d}.` };
+            }},
+            { type: "Equivalent Fractions", anchor: "Recognize simple equivalent fractions.", openEnded: false, gen: () => {
+                const n = rand(1, 5); const d = rand(n + 1, 10); const s = rand(2, 5);
+                return { q: `Which fraction is equivalent to ${n}/${d}?`, ans: `${n*s}/${d*s}`, distractors: [`${n}/${d+1}`, `${n+1}/${d}`, `${d}/${n}`], guide: `Multiply both numerator and denominator by ${s}: (${n}×${s})/(${d}×${s}) = ${n*s}/${d*s}.` };
+            }},
+            { type: "Whole Frac", anchor: "Express whole numbers as fractions.", openEnded: false, gen: () => {
+                const w = rand(2, 20);
+                return { q: `How do you write the whole number ${w} as a fraction?`, ans: `${w}/1`, distractors: [`1/${w}`, `${w}/${w}`, `${w*2}/1`], guide: `Any whole number ${w} can be written as ${w}/1.` };
+            }},
+            { type: "Division Exp", anchor: "Interpret whole-number quotients.", openEnded: false, gen: () => {
+                const each = rand(3, 12); const groups = rand(3, 10); const total = each * groups;
+                return { q: `Share ${total} items into groups of ${each}. Which expression shows the number of groups?`, ans: `${total} ÷ ${each}`, distractors: [`${total} × ${each}`, `${total} - ${each}`, `${total} + ${each}`], guide: `To find the number of equal groups, divide the total (${total}) by the size of each group (${each}).` };
+            }},
+            { type: "Prop Strategy", anchor: "Apply properties to multiply/divide.", openEnded: false, gen: () => {
+                const a = rand(2, 9); const b = rand(3, 12); const c = rand(2, 8);
+                return { q: `Find ${a} × (${b} × ${c}) using the associative property.`, ans: `(${a} × ${b}) × ${c}`, distractors: [`${a} + (${b} × ${c})`, `(${a} × ${b}) + ${c}`, `${a*b*c} + 0`], guide: `The associative property states you can change the grouping: a(bc) = (ab)c.` };
+            }},
+            { type: "Partition", anchor: "Partition shapes into equal areas.", openEnded: false, gen: () => {
+                const parts = rand(2, 16);
+                return { q: `A shape is divided into ${parts} equal parts. Each part is what fraction of the total area?`, ans: `1/${parts}`, distractors: [`1/2`, `${parts}/1`, `2/${parts}`], guide: `When a whole is divided into ${parts} equal parts, each part is 1/${parts}.` };
+            }},
+            { type: "Polygons", anchor: "Understand shape attributes.", openEnded: false, gen: () => {
+                return { q: `What do all squares and rectangles always have in common?`, ans: `4 right angles`, distractors: [`4 equal sides`, `exactly 3 sides`, `no parallel sides`], guide: `By definition, both rectangles and squares must have four 90-degree angles.` };
+            }},
+            { type: "Volume Est", anchor: "Estimate liquid volumes.", openEnded: false, gen: () => {
+                const val = rand(4, 16);
+                return { q: `What is the best estimate for the amount of juice in a standard breakfast glass?`, ans: `${val} ounces`, distractors: [`${val} gallons`, `${val} liters`, `${val*10} cups`], guide: `A normal glass of juice is measured in fluid ounces. Gallons and liters are much too large.` };
+            }},
+            { type: "Money", anchor: "Solve problems with coins/bills.", openEnded: false, gen: () => {
+                const paid = choose([500, 1000, 2000]); const cost = rand(50, paid - 50); const diff = paid - cost;
+                return { q: `An item costs $${(cost/100).toFixed(2)}. You pay with a $${(paid/100).toFixed(0)} bill. How much change do you receive?`, ans: `$${(diff/100).toFixed(2)}`, distractors: [`$${((diff+10)/100).toFixed(2)}`, `$${((diff-5)/100).toFixed(2)}`, `$${(cost/100).toFixed(2)}`], guide: `Subtract the cost from the amount paid: $${(paid/100).toFixed(2)} - $${(cost/100).toFixed(2)} = $${(diff/100).toFixed(2)}.` };
+            }},
+            { type: "Time", anchor: "Tell and write time to nearest minute.", openEnded: false, gen: () => {
+                const h = rand(1, 12); const m = rand(11, 59);
+                return { q: `The clock shows the hour hand just past ${h} and the minute hand on ${m}. What time is it?`, ans: `${h}:${m}`, distractors: [`${m}:${h}`, `${h}:00`, `${h+1}:${m-10}`], guide: `The hour is ${h} and the minutes are ${m}, so it is ${h}:${m}.` };
+            }},
+            { type: "Area Mult", anchor: "Relate area to multiplication.", openEnded: false, gen: () => {
+                const l = rand(4, 25); const w = rand(3, 15); const ans = l * w;
+                return { q: `A rectangular rug is ${l} feet long and ${w} feet wide. What is the area?`, ans: ans.toString(), distractors: [(l+w).toString(), (2*l+2*w).toString(), (ans-1).toString()], guide: `Area = length × width. ${l} × ${w} = ${ans} square feet.` };
+            }},
+            { type: "Perimeter", anchor: "Solve problems with perimeter.", openEnded: false, gen: () => {
+                const s = rand(3, 30); const ans = s * 4;
+                return { q: `A square garden has a side length of ${s} yards. What is the perimeter?`, ans: ans.toString(), distractors: [(s*s).toString(), (s+4).toString(), (s*2).toString()], guide: `Perimeter of a square = 4 × side. 4 × ${s} = ${ans} yards.` };
+            }},
+            { type: "Data Plots", anchor: "Interpret line plots.", openEnded: false, gen: () => {
+                const xCount = rand(2, 12); const val = rand(1, 10);
+                return { q: `On a line plot, there are ${xCount} 'X' marks above the number ${val}. How many items measured ${val} inches?`, ans: xCount.toString(), distractors: [val.toString(), (xCount+val).toString(), "1"], guide: `Each 'X' represents one item. Since there are ${xCount} Xs, there are ${xCount} items.` };
+            }},
+            { type: "UnknownFactor", anchor: "B-O.1.2.2", openEnded: false, gen: () => {
+                const a = rand(2, 12); const ans = rand(2, 12); const product = a * ans;
+                return { q: `? × ${a} = ${product}. What is the missing number?`, ans: ans.toString(), distractors: [(ans + 1).toString(), (ans - 1).toString(), a.toString()], guide: `To find the missing factor, divide the product by the known factor: ${product} ÷ ${a} = ${ans}.` };
+            }},
+            { type: "BikeFrac", anchor: "A-F.1.1.1", openEnded: false, gen: () => {
+                const t = rand(4, 20); const p = rand(1, t - 1);
+                return { q: `You rode your bike ${t} miles total and stopped at mile ${p}. What fraction of the trip had you completed when you stopped?`, ans: `${p}/${t}`, distractors: [`${t}/${p}`, `1/${t}`, `${p + 1}/${t}`], guide: `You completed ${p} miles out of ${t} total miles, so the fraction is ${p}/${t}.` };
+            }},
+            { type: "ArrayDiv", anchor: "B-O.1.1.2", openEnded: false, gen: () => {
+                const rows = rand(2, 10); const perRow = rand(3, 12); const total = rows * perRow;
+                return { q: `There are ${total} items arranged equally in ${rows} rows. How many items are in each row?`, ans: perRow.toString(), distractors: [rows.toString(), total.toString(), (perRow + 1).toString()], guide: `Divide the total by the number of rows: ${total} ÷ ${rows} = ${perRow}.` };
+            }},
+            { type: "RepeatAdd", anchor: "B-O.1.1.1", openEnded: false, gen: () => {
+                const a = rand(2, 15); const ans = a * 4;
+                return { q: `${a} + ${a} + ${a} + ${a} = ? Write this as a multiplication expression and solve.`, ans: `${a} × 4 = ${ans}`, distractors: [`${a} + 4 = ${a + 4}`, `${a} × ${a} = ${a * a}`, `4 + 4 = 8`], guide: `Adding ${a} four times is the same as ${a} × 4 = ${ans}.` };
+            }},
+            { type: "Pattern", anchor: "B-O.3.1.5", openEnded: false, gen: () => {
+                const s = rand(1, 20); const step = rand(2, 10); const n = rand(4, 12); const ans = s + step * (n - 1);
+                return { q: `A pattern starts at ${s} and adds ${step} each time. What is the ${n}th number in the pattern?`, ans: ans.toString(), distractors: [(ans + step).toString(), (ans - step).toString(), (s + step).toString()], guide: `The pattern is ${s}, ${s + step}, ${s + step * 2}, ... The ${n}th term = ${s} + ${step} × ${n - 1} = ${ans}.` };
+            }},
+            { type: "MassEst", anchor: "D-M.1.1.2", openEnded: false, gen: () => {
+                return { q: `Which is the best estimate for the mass of a pencil?`, ans: "about 10 grams", distractors: ["about 10 kilograms", "about 1 kilogram", "about 100 grams"], guide: `A pencil is very light. Grams are used for small objects, and about 10 grams is a reasonable estimate.` };
+            }},
+            { type: "Elapsed", anchor: "D-M.1.1.1", openEnded: false, gen: () => {
+                const startH = rand(1, 12); const dur = rand(1, 5); const durMin = choose([0, 15, 30, 45]); const endH = startH + dur + (durMin >= 60 ? 1 : 0); const endMin = durMin % 60;
+                return { q: `A movie starts at ${startH}:00 PM and lasts ${dur} hour${dur > 1 ? 's' : ''}${durMin > 0 ? ` and ${durMin} minutes` : ''}. What time does it end?`, ans: `${endH}:${endMin === 0 ? '00' : endMin} PM`, distractors: [`${endH + 1}:00 PM`, `${startH}:${durMin === 0 ? '30' : '00'} PM`, `${endH}:${endMin === 0 ? '30' : '00'} PM`], guide: `Start at ${startH}:00 PM, add ${dur} hour${dur > 1 ? 's' : ''}${durMin > 0 ? ` and ${durMin} minutes` : ''} to get ${endH}:${endMin === 0 ? '00' : endMin} PM.` };
+            }},
+            { type: "BarData", anchor: "D-M.2.1.1", openEnded: false, gen: () => {
+                const a = rand(5, 75); const b = rand(5, 75); const diff = Math.abs(a - b);
+                const nameA = choose(["Soccer", "Baseball", "Tennis", "Swimming", "Gymnastics", "Track"]); const nameB = choose(["Basketball", "Football", "Hockey", "Volleyball", "Lacrosse", "Wrestling"]);
+                return { q: `A bar graph shows ${nameA} with ${a} votes and ${nameB} with ${b} votes. How many more votes does ${a >= b ? nameA : nameB} have?`, ans: diff.toString(), distractors: [(a + b).toString(), (diff + 2).toString(), Math.min(a, b).toString()], guide: `Subtract the smaller from the larger: ${Math.max(a, b)} - ${Math.min(a, b)} = ${diff}.` };
+            }},
+            { type: "FracSize", anchor: "A-F.1.1.3", openEnded: false, gen: () => {
+                const d1 = rand(2, 6); const d2 = rand(d1 + 1, 12); const d3 = rand(d2 + 1, 16);
+                return { q: `Which fraction is the largest: 1/${d1}, 1/${d2}, or 1/${d3}?`, ans: `1/${d1}`, distractors: [`1/${d2}`, `1/${d3}`, `They are equal`], guide: `For unit fractions, the smaller the denominator, the larger the fraction. 1/${d1} > 1/${d2} > 1/${d3}.` };
+            }},
+            { type: "Rhombus", anchor: "E-G.1.1.1", openEnded: false, gen: () => {
+                return { q: `A shape has 4 equal sides but no right angles. What is it?`, ans: "Rhombus", distractors: ["Square", "Rectangle", "Trapezoid"], guide: `A rhombus has four equal sides. Unlike a square, it does not require right angles.` };
+            }},
+            { type: "MultCtx", anchor: "B-O.1.1.1", openEnded: false, gen: () => {
+                const packs = rand(2, 15); const perPack = rand(3, 12); const ans = packs * perPack;
+                return { q: `You buy ${packs} packs of stickers. Each pack has ${perPack} stickers. How many stickers in all?`, ans: ans.toString(), distractors: [(packs + perPack).toString(), (ans + perPack).toString(), (ans - 1).toString()], guide: `Multiply the number of packs by stickers per pack: ${packs} × ${perPack} = ${ans}.` };
+            }},
+            { type: "DivCtx", anchor: "B-O.1.1.2", openEnded: false, gen: () => {
+                const groups = rand(2, 12); const perGroup = rand(3, 12); const total = groups * perGroup;
+                return { q: `There are ${total} students split equally into groups of ${perGroup}. How many groups are there?`, ans: groups.toString(), distractors: [perGroup.toString(), total.toString(), (groups + 1).toString()], guide: `Divide the total by the group size: ${total} ÷ ${perGroup} = ${groups}.` };
+            }},
+            { type: "EvenOdd", anchor: "A-T.1.1.5", openEnded: false, gen: () => {
+                const n = rand(10, 999); const isEven = n % 2 === 0;
+                return { q: `Is ${n} even or odd?`, ans: isEven ? "Even" : "Odd", distractors: [isEven ? "Odd" : "Even", "Neither", "Both"], guide: `A number is even if it is divisible by 2. ${n} ÷ 2 = ${n / 2}${isEven ? ', so it is even' : ' has a remainder, so it is odd'}.` };
+            }},
+            { type: "Half", anchor: "A-F.1.1.2", openEnded: false, gen: () => {
+                const n = rand(2, 50) * 2;
+                return { q: `What number is halfway between 0 and ${n}?`, ans: (n / 2).toString(), distractors: [n.toString(), (n / 2 + 1).toString(), "0"], guide: `Halfway between 0 and ${n} is ${n} ÷ 2 = ${n / 2}.` };
+            }},
+
+            // ===== 2022 SAMPLER GRADE 3 =====
+
+            { type: "PlaceValueValue", anchor: "M03.A-T.1.1.4", openEnded: false, gen: () => {
+                const digit = rand(1, 9); const num = rand(1, 9) * 1000 + rand(0, 9) * 100 + digit * 10 + rand(0, 9);
+                return { q: `In the number ${num.toLocaleString()}, what is the value of the digit ${digit}?`, ans: `${digit} tens`, distractors: [`${digit} hundreds`, `${digit} ones`, `${digit} thousands`], guide: `The digit ${digit} is in the tens place, so its value is ${digit} tens or ${digit * 10}.` };
+            }},
+            { type: "RoundNearestTen", anchor: "M03.A-T.1.1.1", openEnded: false, gen: () => {
+                const tens = rand(1, 9) * 10; const a = rand(tens + 1, tens + 9); const b = rand(tens + 1, tens + 9);
+                return { q: `The inequality ${a} < ${b} is true. If you round both to the nearest ten, what does the symbol become?`, ans: "=", distractors: [">", "<", "≠"], guide: `${a} rounds to 40 and ${b} rounds to 40. Since 40 = 40, the symbol becomes equal.` };
+            }},
+            { type: "NumberOrder", anchor: "M03.A-T.1.1.4", openEnded: false, gen: () => {
+                const base = rand(1100, 8500);
+                const arr = [base, base + 10, base + 20, base + 30].sort(() => Math.random() - 0.5);
+                const sorted = [...arr].sort((a, b) => b - a);
+                return { q: `Order these numbers from greatest to least: ${arr.join(", ")}`, ans: sorted.join(", "), distractors: [[...sorted].reverse().join(", "), arr.join(", "), sorted.slice(1).join(", ")], guide: `Compare digits from left to right to find the largest value.` };
+            }},
+            { type: "MultiplicationLogic", anchor: "M03.B-O.1.2.1", openEnded: false, gen: () => {
+                const g = rand(2, 12); const oz = rand(3, 16); const ans = g * oz;
+                return { q: `Gary fills ${g} glasses with ${oz} oz each. Sara has the same total amount. How many total ounces does she have?`, ans: ans.toString(), distractors: [(g + oz).toString(), (ans - 5).toString(), (ans + 10).toString()], guide: `Multiply the number of glasses by the ounces per glass: ${g} × ${oz} = ${ans}.` };
+            }},
+            { type: "AreaDivision", anchor: "M03.D-M.3.1.2", openEnded: false, gen: () => {
+                const l = rand(2, 8); const w = rand(2, 5); const count = rand(4, 15); const total = (l * w) * count;
+                return { q: `A design has a total area of ${total} sq in. It is made of rectangles that are ${l} in by ${w} in. How many are there?`, ans: count.toString(), distractors: [(count + 2).toString(), (total / l).toString(), (l * w).toString()], guide: `One rectangle is ${l * w} sq in. ${total} ÷ ${l * w} = ${count}.` };
+            }},
+            { type: "AssociativeProperty", anchor: "M03.B-O.2.1.2", openEnded: false, gen: () => {
+                const a = rand(3, 12); const b = rand(2, 6); const c = rand(2, 8);
+                return { q: `Which expression shows another way to find the value of (${a} × ${b}) × ${c}?`, ans: `${a} × (${b} × ${c})`, distractors: [`(${a} + ${b}) × ${c}`, `(${a} × ${b}) + ${c}`, `${a} × (${b} + ${c})`], guide: `The associative property allows you to move grouping symbols in multiplication.` };
+            }},
+            { type: "PolygonDefinition", anchor: "M03.C-G.1", openEnded: false, gen: () => ({
+                q: `A shape has one curved side. Why is it NOT a polygon?`, ans: "Polygons cannot have curved sides", distractors: ["Polygons must have 4 sides", "Sides must be different lengths", "It must have an inside"], guide: "By definition, polygons are made only of straight line segments."
+            })},
+            { type: "FractionID", anchor: "M03.A-F.1.1.2", openEnded: false, gen: () => {
+                const d = rand(2, 16);
+                return { q: `A shape is divided into ${d} equal parts. What fraction represents one part?`, ans: `1/${d}`, distractors: [`${d}/1`, "1/2", `${d - 1}/${d}`], guide: `One part out of ${d} total parts is 1/${d}.` };
+            }},
+            { type: "MassEstimate", anchor: "M03.D-M.1.1.2", openEnded: false, gen: () => ({
+                q: `What is the best estimate for the mass of a single paperclip?`, ans: "1 gram", distractors: ["1 kilogram", "1 pound", "1 ton"], guide: "Grams are used for small, lightweight objects."
+            })},
+            { type: "TimeToMinute", anchor: "M03.D-M.1.1.1", openEnded: false, gen: () => {
+                const h = rand(1, 12); const m = rand(1, 59);
+                return { q: `The clock shows ${m} minutes past ${h}. What is the time?`, ans: `${h}:${m}`, distractors: [`${m}:${h}`, `${h}:00`, `${h + 1}:${m}`], guide: "Read the hour first, then the minutes." };
+            }},
+            { type: "EquivFrac", anchor: "M03.A-F.1.1.3", openEnded: false, gen: () => {
+                const d = rand(2, 8);
+                return { q: `Which fraction is equivalent to 1/${d}?`, ans: `2/${d * 2}`, distractors: [`1/${d + 1}`, `${d}/1`, "2/10"], guide: "Multiply the top and bottom by the same number." };
+            }},
+            { type: "BarData", anchor: "M03.D-M.2.1.1", openEnded: false, gen: () => {
+                const a = rand(3, 40); const b = rand(a + 1, 50);
+                return { q: `Hannah has ${a} rocks and Tom has ${b}. How many more does Tom have?`, ans: (b - a).toString(), distractors: [b.toString(), (a + b).toString(), "2"], guide: `${b} - ${a} = ${b - a}.` };
+            }},
+            { type: "PerimeterPath", anchor: "M03.D-M.4", openEnded: false, gen: () => ({
+                q: `Grady swims the distance around the edge of a pool. This is the:`, ans: "Perimeter", distractors: ["Length", "Area", "Volume"], guide: "The distance around a shape is the perimeter."
+            })},
+            { type: "MissingFactor", anchor: "M03.B-O.1.2.2", openEnded: false, gen: () => {
+                const a = rand(2, 12); const b = rand(2, 12);
+                return { q: `${a} × ? = ${a * b}`, ans: b.toString(), distractors: [a.toString(), (b + 1).toString(), (a * b - 1).toString()], guide: `Divide the product by the known factor: ${a * b} ÷ ${a} = ${b}.` };
+            }},
+            { type: "EvenOddID", anchor: "M03.A-T.1.1.5", openEnded: false, gen: () => {
+                const n = rand(10, 199); const isE = n % 2 === 0;
+                return { q: `Is ${n} even or odd?`, ans: isE ? "Even" : "Odd", distractors: [isE ? "Odd" : "Even", "Prime", "Zero"], guide: "Check the last digit: 0, 2, 4, 6, 8 are even." };
+            }},
+            { type: "RulerArea", anchor: "M03.D-M.3.1.2", openEnded: false, gen: () => {
+                const s1 = rand(2, 12); const s2 = rand(3, 15);
+                return { q: `A rectangle has sides of ${s1}cm and ${s2}cm. Area?`, ans: (s1 * s2).toString(), distractors: [(s1 + s2).toString(), (2 * s1 + 2 * s2).toString(), "10"], guide: `${s1} × ${s2} = ${s1 * s2}.` };
+            }}
+        ],
+        4: [
+            { type: "Dec Frac", anchor: "Tenths and hundredths notation.", openEnded: false, gen: () => {
+                const v = rand(1, 99); const dec = (v/100).toFixed(2);
+                return { q: `Which fraction is equal to ${dec}?`, ans: `${v}/100`, distractors: [`1/${v}`, `100/${v}`, `${v}/10`], guide: `The decimal ${dec} has two places, which represents ${v} hundredths.` };
+            }},
+            { type: "Word Form", anchor: "Write numbers in word form.", openEnded: false, gen: () => {
+                const thousands = rand(2, 9) * 10 + rand(1, 9); const ones = rand(1, 9) * 10;
+                const num = thousands * 1000 + ones;
+                return { q: `Which shows ${num.toLocaleString()} in word form?`, ans: `${numberToWord(thousands)} thousand, ${numberToWord(ones)}`, distractors: [`${numberToWord(thousands)} thousand, ${numberToWord(Math.floor(ones/10))}`, `${numberToWord(ones)} thousand, ${numberToWord(thousands)}`, `${numberToWord(thousands)} hundred`], guide: `The digits in the thousands period are ${thousands}, and the remaining digits form ${ones}.` };
+            }},
+            { type: "Rounding", anchor: "Round to any place.", openEnded: false, gen: () => {
+                const base = rand(10, 99) * 1000; const offset = rand(1, 999); const num = base + offset;
+                const ans = Math.round(num/1000)*1000;
+                return { q: `Round ${num.toLocaleString()} to the nearest thousand.`, ans: ans.toLocaleString(), distractors: [base.toLocaleString(), (ans+1000).toLocaleString(), (base+500).toLocaleString()], guide: `The hundreds digit is ${Math.floor((num % 1000)/100)}. Since it's 5 or more, round up to ${ans.toLocaleString()}.` };
+            }},
+            { type: "Remainders", anchor: "Find quotients and remainders.", openEnded: false, gen: () => {
+                const divisor = rand(3, 12); const quotient = rand(5, 25); const rem = rand(1, divisor - 1); const num = divisor * quotient + rem;
+                return { q: `What is the remainder when ${num} is divided by ${divisor}?`, ans: rem.toString(), distractors: [quotient.toString(), divisor.toString(), "0"], guide: `${divisor} × ${quotient} = ${divisor*quotient}. ${num} - ${divisor*quotient} = ${rem}.` };
+            }},
+            { type: "Multi-Step", anchor: "Solve multi-step whole number problems.", openEnded: false, gen: () => {
+                const f = rand(10, 80); const b = rand(50, 200); const c = rand(2, 8); const ans = f * b * c;
+                return { q: `A building has ${f} floors with ${b} bulbs each. If it costs $${c} to replace each bulb, total cost?`, ans: `$${ans.toLocaleString()}`, distractors: [`$${(f*b).toLocaleString()}`, `$${(b*c).toLocaleString()}`, `$${(ans-100).toLocaleString()}`], guide: `Total bulbs = ${f} × ${b} = ${f*b}. Total cost = ${f*b} × $${c} = $${ans.toLocaleString()}.` };
+            }},
+            { type: "Frac Bench", anchor: "Compare fractions using benchmarks.", openEnded: false, gen: () => {
+                const n1 = rand(1, 5); const d1 = rand(6, 15); const n2 = rand(1, 5); const d2 = rand(3, 8);
+                const v1 = n1/d1; const v2 = n2/d2;
+                const symbol = v1 < v2 ? '<' : v1 > v2 ? '>' : '=';
+                return { q: `Compare ${n1}/${d1} and ${n2}/${d2}.`, ans: `${n1}/${d1} ${symbol} ${n2}/${d2}`, distractors: [`${n1}/${d1} ${symbol === '<' ? '>' : '<'} ${n2}/${d2}`, `${n1}/${d1} = ${n2}/${d2}`, `${n1}/${d1} > 1`], guide: `${n1}/${d1} ≈ ${v1.toFixed(2)}. ${n2}/${d2} ≈ ${v2.toFixed(2)}. So ${n1}/${d1} ${symbol} ${n2}/${d2}.` };
+            }},
+            { type: "Frac Add", anchor: "Add fractions with like denominators.", openEnded: false, gen: () => {
+                const d = rand(8, 15); const n1 = rand(1, 3); const n2 = rand(2, 5); const n3 = rand(1, 3); const sum = n1 + n2 + n3;
+                return { q: `Simplify: ${n1}/${d} + ${n2}/${d} + ${n3}/${d}`, ans: `${sum}/${d}`, distractors: [`${sum}/${d*3}`, `1/${d}`, `${sum-1}/${d}`], guide: `Add the numerators: ${n1} + ${n2} + ${n3} = ${sum}. Keep the denominator ${d}.` };
+            }},
+            { type: "Dec Comp", anchor: "Compare decimals to hundredths.", openEnded: false, gen: () => {
+                const whole = rand(1, 5); const d1 = rand(1, 9); const d2 = rand(d1+1, 9);
+                const v1 = whole + d1/100; const v2 = whole + d2/10;
+                return { q: `Which is a correct comparison of ${v1.toFixed(2)} and ${v2.toFixed(1)}?`, ans: `${v1.toFixed(2)} < ${v2.toFixed(1)}`, distractors: [`${v1.toFixed(2)} > ${v2.toFixed(1)}`, `${v1.toFixed(2)} = ${v2.toFixed(1)}`, `Cannot compare`], guide: `${v2.toFixed(1)} is the same as ${v2.toFixed(2)}. Since ${(d1/100).toFixed(2)} < ${(d2/10).toFixed(2)}, the answer is <.` };
+            }},
+            { type: "Factors", anchor: "Find factor pairs.", openEnded: false, gen: () => {
+                const nums = [12, 18, 24, 30, 36];
+                const num = nums[rand(0, nums.length - 1)];
+                const factors = [];
+                for (let i = 1; i <= num; i++) { if (num % i === 0) factors.push(i); }
+                const missing = factors.slice(1, -1);
+                return { q: `Which set contains all the factors of ${num}?`, ans: factors.join(', '), distractors: [missing.join(', '), `1, ${num}`, factors.slice(0, Math.ceil(factors.length/2)).join(', ')], guide: `List all pairs that multiply to ${num}: ${factors.join(', ')}.` };
+            }},
+            { type: "Prime", anchor: "Prime vs Composite.", openEnded: false, gen: () => {
+                const primes = [11, 13, 17, 19, 23, 29, 31];
+                const p = primes[rand(0, primes.length - 1)];
+                return { q: `Which of these numbers is prime?`, ans: p.toString(), distractors: ["9", "15", "21"], guide: `A prime number has only two factors: 1 and itself. ${p} cannot be divided by anything else.` };
+            }},
+            { type: "Metric", anchor: "Convert metric units.", openEnded: false, gen: () => {
+                const m = rand(4, 12); const ans = m * 100;
+                return { q: `Convert ${m} meters to centimeters.`, ans: ans.toString(), distractors: [(m*10).toString(), (m*1000).toString(), "100"], guide: `1 meter = 100 cm. So, ${m} × 100 = ${ans} cm.` };
+            }},
+            { type: "Angles", anchor: "Identify angle types.", openEnded: false, gen: () => {
+                const deg = rand(95, 170);
+                return { q: `An angle measures ${deg} degrees. What type of angle is it?`, ans: "Obtuse", distractors: ["Acute", "Right", "Straight"], guide: `Any angle greater than 90 degrees but less than 180 degrees is obtuse.` };
+            }},
+            { type: "Protractor", anchor: "Measure angles.", openEnded: false, gen: () => {
+                const deg = rand(25, 85);
+                return { q: `One ray of an angle is at 0° and the other is at ${deg}°. What is the angle's measure?`, ans: `${deg}°`, distractors: [`${180-deg}°`, `${deg+10}°`, `90°`], guide: `The degree measure is the difference between the two rays: ${deg} - 0 = ${deg}.` };
+            }},
+            { type: "Symmetry", anchor: "Recognize lines of symmetry.", openEnded: false, gen: () => {
+                const shapes = [{s: "square", n: 4}, {s: "rectangle", n: 2}, {s: "equilateral triangle", n: 3}];
+                const pick = shapes[rand(0, shapes.length - 1)];
+                return { q: `How many lines of symmetry does a ${pick.s} have?`, ans: pick.n.toString(), distractors: ["1", pick.n === 4 ? "6" : "4", "0"], guide: `A ${pick.s} has ${pick.n} line(s) of symmetry.` };
+            }},
+            { type: "Area", anchor: "Area of rectangles.", openEnded: false, gen: () => {
+                const l = rand(6, 10); const w = rand(3, 5); const ans = l * w;
+                return { q: `What is the area of a rectangle that is ${l} units long and ${w} units wide?`, ans: ans.toString(), distractors: [(l+w).toString(), (2*l+2*w).toString(), (ans-5).toString()], guide: `Area = Length × Width = ${l} × ${w} = ${ans}.` };
+            }},
+            { type: "Perimeter", anchor: "Perimeter word problems.", openEnded: false, gen: () => {
+                const p = rand(12, 24); const ans = p * 2;
+                return { q: `If the perimeter of a shape is ${p} inches, what is the perimeter of a shape that is exactly double that size?`, ans: ans.toString(), distractors: [p.toString(), (p+2).toString(), (p*p).toString()], guide: `Double the size means multiplying the perimeter by 2: ${p} × 2 = ${ans}.` };
+            }},
+            { type: "Mult4x1", anchor: "A-T.2.1.2", openEnded: false, gen: () => {
+                const a = rand(1001, 4999); const b = rand(2, 9); const ans = a * b;
+                return { q: `Calculate ${a} × ${b}.`, ans: ans.toString(), distractors: [(ans + b).toString(), (ans - a).toString(), (a + b).toString()], guide: `Multiply each digit of ${a} by ${b}, carrying as needed: ${a} × ${b} = ${ans}.` };
+            }},
+            { type: "CompWord", anchor: "A-T.1.1.3", openEnded: false, gen: () => {
+                const a = rand(2, 9); const b = rand(3, 8); const ans = a * b;
+                return { q: `What is ${a} times as much as ${b}?`, ans: ans.toString(), distractors: [(a + b).toString(), (a - b + 10).toString(), (ans + a).toString()], guide: `"${a} times as much as ${b}" means ${a} × ${b} = ${ans}.` };
+            }},
+            { type: "SubLarge", anchor: "A-T.2.1.1", openEnded: false, gen: () => {
+                const sub = rand(10000, 40000); const ans = 50000 - sub;
+                return { q: `What is 50,000 - ${sub.toLocaleString()}?`, ans: ans.toLocaleString(), distractors: [(ans + 1000).toLocaleString(), (ans - 1000).toLocaleString(), (50000 + sub).toLocaleString()], guide: `50,000 - ${sub.toLocaleString()} = ${ans.toLocaleString()}.` };
+            }},
+            { type: "FracCompDen", anchor: "A-F.1.1.2", openEnded: false, gen: () => {
+                const n = rand(1, 3); const d1 = rand(3, 5); const d2 = rand(d1 + 2, 10);
+                return { q: `Which is greater: ${n}/${d1} or ${n}/${d2}?`, ans: `${n}/${d1}`, distractors: [`${n}/${d2}`, `They are equal`, `Cannot tell`], guide: `When numerators are equal, the fraction with the smaller denominator is larger. Since ${d1} < ${d2}, ${n}/${d1} > ${n}/${d2}.` };
+            }},
+            { type: "MixedAdd", anchor: "A-F.2.1.1", openEnded: false, gen: () => {
+                const w1 = rand(1, 3); const w2 = rand(1, 3); const d = rand(3, 6); const n1 = rand(1, d - 2); const n2 = rand(1, d - n1);
+                const ansW = w1 + w2 + Math.floor((n1 + n2) / d); const ansN = (n1 + n2) % d;
+                const ansStr = ansN > 0 ? `${ansW} ${ansN}/${d}` : ansW.toString();
+                return { q: `Add: ${w1} ${n1}/${d} + ${w2} ${n2}/${d}`, ans: ansStr, distractors: [`${w1 + w2} ${n1}/${d}`, `${ansW + 1} ${ansN}/${d}`, `${w1 + w2}`], guide: `Add the whole numbers: ${w1} + ${w2} = ${w1 + w2}. Add the fractions: ${n1}/${d} + ${n2}/${d} = ${n1 + n2}/${d}. Result: ${ansStr}.` };
+            }},
+            { type: "PatternMult", anchor: "B-O.3.1.2", openEnded: false, gen: () => {
+                const start = rand(2, 10); const mult = rand(2, 5); const t2 = start * mult; const t3 = t2 * mult; const t4 = t3 * mult;
+                return { q: `A pattern starts at ${start} and each term is multiplied by ${mult}. What is the 4th term?`, ans: t4.toString(), distractors: [t3.toString(), (t4 + mult).toString(), (start * 4).toString()], guide: `${start}, ${t2}, ${t3}, ${t4}. Each term is multiplied by ${mult}.` };
+            }},
+            { type: "Moneyctx", anchor: "D-M.1.1.2", openEnded: false, gen: () => {
+                const q = rand(4, 20); const ans = q * 25;
+                return { q: `How many cents are in ${q} quarters?`, ans: `${ans} cents`, distractors: [`${q} cents`, `${q * 10} cents`, `${ans + 25} cents`], guide: `Each quarter is worth 25 cents. ${q} × 25 = ${ans} cents.` };
+            }},
+            { type: "LinePlot", anchor: "D-M.2.1.2", openEnded: false, gen: () => {
+                const v1 = rand(2, 5); const v2 = rand(3, 6); const v3 = rand(1, 4); const total = v1 + v2 + v3;
+                return { q: `A line plot shows ${v1} dots above 1/4, ${v2} dots above 1/2, and ${v3} dots above 3/4. How many data points are there in all?`, ans: total.toString(), distractors: [(total + 1).toString(), v2.toString(), (v1 + v3).toString()], guide: `Add all the dots: ${v1} + ${v2} + ${v3} = ${total}.` };
+            }},
+            { type: "RayID", anchor: "E-G.1.1.1", openEnded: false, gen: () => {
+                return { q: `A line that has one endpoint and extends forever in one direction is called a:`, ans: "Ray", distractors: ["Line", "Line segment", "Point"], guide: `A ray has one fixed endpoint and extends infinitely in one direction.` };
+            }},
+            { type: "RightTri", anchor: "E-G.1.1.2", openEnded: false, gen: () => {
+                return { q: `A triangle with one 90-degree angle is called a:`, ans: "Right triangle", distractors: ["Acute triangle", "Obtuse triangle", "Equilateral triangle"], guide: `A right triangle is defined as a triangle that contains exactly one 90-degree angle.` };
+            }},
+            { type: "Parallel", anchor: "E-G.1.1.1", openEnded: false, gen: () => {
+                return { q: `Lines in the same plane that never intersect are called:`, ans: "Parallel lines", distractors: ["Perpendicular lines", "Intersecting lines", "Skew lines"], guide: `Parallel lines are coplanar lines that never cross, no matter how far they are extended.` };
+            }},
+            { type: "FracSub", anchor: "A-F.2.1.2", openEnded: false, gen: () => {
+                const d = rand(5, 12); const n1 = rand(3, d - 1); const n2 = rand(1, n1 - 1); const ansN = n1 - n2;
+                const g = gcd(ansN, d); const sn = ansN / g; const sd = d / g;
+                return { q: `Subtract: ${n1}/${d} - ${n2}/${d}`, ans: `${sn}/${sd}`, distractors: [`${n1 + n2}/${d}`, `${ansN}/${d * 2}`, `${n2}/${d}`], guide: `Subtract the numerators: ${n1} - ${n2} = ${ansN}. Keep the denominator: ${ansN}/${d}${g > 1 ? ` = ${sn}/${sd}` : ''}.` };
+            }},
+
+            // ===== 2022 SAMPLER GRADE 4 =====
+
+            { type: "TenTimesValue", anchor: "M04.A-T.1.1.1", openEnded: false, gen: () => {
+                const d = rand(2, 8);
+                return { q: `Which number has a digit ${d} that is 10 times the value of ${d} in the tens place?`, ans: `A number with ${d} in the hundreds place`, distractors: [`${d} in the ones`, `${d} in the thousands`, "None"], guide: `10 times ${d}0 is ${d}00.` };
+            }},
+            { type: "TotalPriceAdd", anchor: "M04.A-T.2.1.2", openEnded: false, gen: () => {
+                const a1 = rand(100, 120); const a2 = rand(80, 98);
+                const ans = (a1 * 6) + (a2 * 8);
+                return { q: `Floor A (${a1} sq ft at $6) and Floor B (${a2} sq ft at $8). Total?`, ans: `$${ans}`, distractors: [`$${(a1 + a2) * 6}`, `$${a1 * 6}`, `$${ans - 50}`], guide: `(6 × ${a1}) + (8 × ${a2}) = ${ans}.` };
+            }},
+            { type: "FracBetween", anchor: "M04.A-F.1.1.2", openEnded: false, gen: () => ({
+                q: `Which fraction with denominator 8 is between 1/2 and 3/4?`, ans: "5/8", distractors: ["4/8", "6/8", "1/8"], guide: "1/2 = 4/8 and 3/4 = 6/8. 5/8 is between them."
+            })},
+            { type: "CompWordLogic", anchor: "M04.A-T.2.1.1", openEnded: false, gen: () => {
+                const s = rand(1200, 1300); const diff = rand(300, 310);
+                return { q: `Saturday had ${s} people, which is ${diff} more than Wednesday. Wednesday total?`, ans: (s - diff).toString(), distractors: [(s + diff).toString(), s.toString(), diff.toString()], guide: `${s} - ${diff} = ${s - diff}.` };
+            }}
+        ],
+        5: [
+            { type: "Add Frac", anchor: "Add fractions with unlike denominators.", openEnded: false, gen: () => {
+                const n1 = rand(3, 7); const d1 = rand(4, 8); const n2 = rand(3, 7); const d2 = rand(3, 6);
+                if (d1 === d2) d1 === 8 ? d2 : d1; // ensure unlike
+                const lcd = d1 * d2; const num = n1 * d2 + n2 * d1; const whole = Math.floor(num / lcd); const rem = num % lcd;
+                return { q: `Add: ${n1}/${d1} + ${n2}/${d2}`, ans: whole > 0 ? `${whole} ${rem}/${lcd}` : `${num}/${lcd}`, distractors: [`${n1+n2}/${d1+d2}`, `${whole > 0 ? whole - 1 : 0} ${rem}/${lcd}`, `${num}/${lcd+1}`], guide: `LCD is ${lcd}. ${n1*d2}/${lcd} + ${n2*d1}/${lcd} = ${num}/${lcd}${whole > 0 ? ` = ${whole} ${rem}/${lcd}` : ''}.` };
+            }},
+            { type: "Place Value", anchor: "Decimal place value relations.", openEnded: false, gen: () => {
+                const tens = rand(1, 5); const ones = rand(1, 9); const tenths = rand(1, 9); const hundredths = rand(1, 9);
+                const val = `${tens}${ones}.${tenths}${hundredths}`;
+                return { q: `In ${val}, the ${tenths} is in the tenths place. A digit that is 1/10 the value of that ${tenths} would be in which place?`, ans: "hundredths", distractors: ["ones", "tens", "thousandths"], guide: `1/10 of the tenths place is the hundredths place. Each place to the right is 1/10 the value.` };
+            }},
+            { type: "Rounding", anchor: "Round decimals.", openEnded: false, gen: () => {
+                const d1 = rand(1, 9); const d2 = rand(1, 8); const d3 = rand(5, 9);
+                const rounded2 = d3 >= 5 ? d2 + 1 : d2;
+                return { q: `Round 0.${d1}${d2}${d3} to the nearest hundredth.`, ans: `0.${d1}${rounded2}`, distractors: [`0.${d1}${d2}`, `0.${d1}`, `0.${d1}${d2}${d3}`], guide: `Look at the thousandths digit (${d3}). Since it's ${d3 >= 5 ? '5 or more, round up' : 'less than 5, round down'}.` };
+            }},
+            { type: "Dec Logic", anchor: "Mixed operations with decimals.", openEnded: false, gen: () => {
+                const total = rand(3, 8); const half = total / 2; const d1 = rand(10, 20); const d2 = d1 + rand(2, 5);
+                const r1 = half / d1; const r2 = half / d2; const ans = Math.abs(r1 - r2).toFixed(2);
+                return { q: `A ${total}kg block is halved. Worker A divides into ${d1} packs, Worker B into ${d2} packs. Mass difference per pack?`, ans: ans, distractors: [(r1+r2).toFixed(2), r1.toFixed(2), r2.toFixed(2)], guide: `${half}/${d1} = ${r1.toFixed(3)}. ${half}/${d2} = ${r2.toFixed(3)}. Difference ≈ ${ans}.` };
+            }},
+            { type: "Mult Algo", anchor: "Multiply multi-digit numbers.", openEnded: false, gen: () => {
+                const a = rand(100, 200); const b = rand(12, 30); const ans = a * b;
+                return { q: `Calculate ${a} × ${b}.`, ans: ans.toString(), distractors: [(a*(b-10)).toString(), (a*Math.floor(b/10)*10).toString(), (ans-50).toString()], guide: `${a} × ${b % 10} = ${a*(b%10)}. ${a} × ${Math.floor(b/10)*10} = ${a*Math.floor(b/10)*10}. Sum = ${ans}.` };
+            }},
+            { type: "Division", anchor: "Divide 4-digits by 2-digits.", openEnded: false, gen: () => {
+                const divisor = rand(12, 24); const quotient = rand(20, 50); const total = divisor * quotient;
+                return { q: `A person earns $${total} over ${divisor} weeks. How much is earned each week?`, ans: `$${quotient}`, distractors: [`$${quotient-1}`, `$${quotient+2}`, `$${divisor}`], guide: `${total} ÷ ${divisor} = ${quotient}.` };
+            }},
+            { type: "Frac Mult", anchor: "Real world fraction multiplication.", openEnded: false, gen: () => {
+                const portion = rand(3, 6); const total = rand(4, 24); const ans = total * portion;
+                return { q: `You have ${total} lbs of turkey. Each sandwich uses 1/${portion} lb. How many sandwiches can you make?`, ans: ans.toString(), distractors: [total.toString(), portion.toString(), (ans-2).toString()], guide: `${total} ÷ 1/${portion} is the same as ${total} × ${portion} = ${ans}.` };
+            }},
+            { type: "Dec Comp", anchor: "Compare decimals to thousandths.", openEnded: false, gen: () => {
+                const w = rand(1, 9); const d1 = rand(1, 9); const d2 = rand(1, 9);
+                const v = `${w}.${d1}${d2}`;
+                return { q: `Compare ${v}0 and ${v}.`, ans: "Equal", distractors: [`${v}0 is greater`, `${v}0 is less`, "Cannot compare"], guide: `Adding a zero at the end of a decimal doesn't change its value. ${v}0 = ${v}.` };
+            }},
+            { type: "Powers 10", anchor: "Explain zeros in products with powers of 10.", openEnded: false, gen: () => {
+                const v = rand(10, 990) / 10; const p = rand(2, 5); const ans = v * Math.pow(10, p);
+                return { q: `What is ${v} × 10<sup>${p}</sup>?`, ans: ans.toString(), distractors: [(v * Math.pow(10, p-1)).toString(), (v * Math.pow(10, p+1)).toString(), (1/ans).toString()], guide: `Move the decimal point ${p} places to the right: ${v} becomes ${ans}.` };
+            }},
+            { type: "Coordinates", anchor: "Graph points on coordinate plane.", openEnded: false, gen: () => {
+                const x = rand(1, 15); const y = rand(1, 15);
+                return { q: `In the ordered pair (${x}, ${y}), which number represents the y-coordinate?`, ans: y.toString(), distractors: [x.toString(), (x+y).toString(), "0"], guide: `The first number is X, the second number is Y. So Y = ${y}.` };
+            }},
+            { type: "Volume", anchor: "Volume of rectangular prisms.", openEnded: false, gen: () => {
+                const l = rand(3, 20); const w = rand(2, 12); const h = rand(2, 10); const ans = l * w * h;
+                return { q: `Find the volume of a box with length ${l}, width ${w}, and height ${h}.`, ans: ans.toString(), distractors: [(l*w).toString(), (l+w+h).toString(), (2*(l*w+l*h+w*h)).toString()], guide: `V = L × W × H = ${l} × ${w} × ${h} = ${ans}.` };
+            }},
+            { type: "Base Area", anchor: "Volume using base area.", openEnded: false, gen: () => {
+                const b = rand(10, 60); const h = rand(2, 10); const ans = b * h;
+                return { q: `A box has a base area of ${b} and a height of ${h}. What is its volume?`, ans: ans.toString(), distractors: [(b+h).toString(), (b-h).toString(), (ans+b).toString()], guide: `Volume = Base Area × Height = ${b} × ${h} = ${ans}.` };
+            }},
+            { type: "Mult Frac", anchor: "Fraction of a whole.", openEnded: false, gen: () => {
+                const d = rand(2, 8); const n = rand(1, d - 1); const w = d * rand(2, 8); const ans = n * w / d;
+                return { q: `What is ${n}/${d} of ${w}?`, ans: ans.toString(), distractors: [(w/d).toString(), (w*n).toString(), (ans+1).toString()], guide: `(${w} ÷ ${d}) = ${w/d}. Then multiply by ${n} to get ${ans}.` };
+            }},
+            { type: "Mixed Sub", anchor: "Subtract mixed numbers.", openEnded: false, gen: () => {
+                const w = rand(3, 12); const subW = rand(1, w - 2); const d = rand(3, 10); const n = rand(1, d - 1);
+                const ansW = w - subW - 1; const ansN = d - n;
+                return { q: `${w} - ${subW} ${n}/${d} = ?`, ans: `${ansW} ${ansN}/${d}`, distractors: [`${subW} ${n}/${d}`, `${ansW} ${n}/${d}`, `${ansW+1} ${ansN}/${d}`], guide: `Think of ${w} as ${w-1} ${d}/${d}. Then ${w-1} ${d}/${d} - ${subW} ${n}/${d} = ${ansW} ${ansN}/${d}.` };
+            }},
+            { type: "Hierarchy", anchor: "Classify shapes.", openEnded: false, gen: () => {
+                return { q: `A square is always a rectangle because it has:`, ans: "4 right angles", distractors: ["4 equal sides", "no parallel lines", "exactly 3 sides"], guide: `The definition of a rectangle is a quadrilateral with four right angles. Squares always meet this rule.` };
+            }},
+            { type: "Patterns", anchor: "Generate numerical patterns.", openEnded: false, gen: () => {
+                const stepA = rand(2, 10); const mult = rand(2, 5); const stepB = stepA * mult;
+                return { q: `Rule A adds ${stepA} each time. Rule B adds ${stepB} each time. How do the terms in Rule B relate to Rule A?`, ans: `Rule B terms are ${mult}x Rule A`, distractors: [`Rule B terms are ${mult+1}x Rule A`, `Rule A terms are ${mult}x Rule B`, "No relation"], guide: `Since ${stepB} is ${mult} times ${stepA}, every term in B will be ${mult} times the corresponding term in A.` };
+            }},
+            { type: "ExpWord", anchor: "A-T.1.1.3", openEnded: false, gen: () => {
+                const tens = rand(1, 9); const ones = rand(1, 9); const num = tens * 10 + ones;
+                return { q: `Which expression shows ${num} in expanded form?`, ans: `(${tens} × 10) + (${ones} × 1)`, distractors: [`(${ones} × 10) + (${tens} × 1)`, `${tens} + ${ones}`, `${tens} × ${ones}`], guide: `${num} = ${tens} tens and ${ones} ones = (${tens} × 10) + (${ones} × 1).` };
+            }},
+            { type: "DecDivide", anchor: "A-T.2.1.3", openEnded: false, gen: () => {
+                const divisor = rand(2, 5); const quotient = rand(2, 6); const dividend = (divisor * quotient) / 10;
+                const divisorDec = divisor / 10;
+                return { q: `What is ${dividend} ÷ ${divisorDec}?`, ans: quotient.toString(), distractors: [(quotient + 1).toString(), (quotient - 1).toString(), dividend.toString()], guide: `${dividend} ÷ ${divisorDec}: multiply both by 10 to get ${dividend * 10} ÷ ${divisor} = ${quotient}.` };
+            }},
+            { type: "OrderOps", anchor: "B-O.1.1.1", openEnded: false, gen: () => {
+                const a = rand(2, 12); const b = rand(1, 10); const c = rand(2, 8); const ans = a + b * c;
+                return { q: `Evaluate: ${a} + ${b} × ${c}`, ans: ans.toString(), distractors: [((a + b) * c).toString(), (a * b + c).toString(), (a + b + c).toString()], guide: `Order of operations: multiply first. ${b} × ${c} = ${b * c}. Then ${a} + ${b * c} = ${ans}.` };
+            }},
+            { type: "GraphCtx", anchor: "C-G.1.1.2", openEnded: false, gen: () => {
+                const x = rand(1, 15); const y = rand(1, 15);
+                return { q: `A point is at (${x}, ${y}) on a coordinate plane. How many units to the right of the origin is it?`, ans: x.toString(), distractors: [y.toString(), (x + y).toString(), (x - 1).toString()], guide: `The x-coordinate tells how far right from the origin. The point is ${x} units to the right.` };
+            }},
+            { type: "TriClass", anchor: "C-G.2.1.1", openEnded: false, gen: () => {
+                return { q: `A triangle with all three sides equal in length is called:`, ans: "Equilateral", distractors: ["Isosceles", "Scalene", "Right"], guide: `An equilateral triangle has all three sides the same length and all three angles equal to 60°.` };
+            }},
+            { type: "FracDenom", anchor: "A-F.1.1", openEnded: false, gen: () => {
+                const d1 = rand(2, 12); const d2 = rand(d1 + 1, 15);
+                const lcd = (d1 * d2) / gcd(d1, d2);
+                return { q: `What is the least common denominator of fractions with denominators ${d1} and ${d2}?`, ans: lcd.toString(), distractors: [(d1 * d2).toString(), d2.toString(), (lcd + d1).toString()], guide: `Find the LCD of ${d1} and ${d2}. The least common multiple is ${lcd}.` };
+            }},
+            { type: "ConvInch", anchor: "D-M.1.1.1", openEnded: false, gen: () => {
+                const ft = rand(2, 25); const ans = ft * 12;
+                return { q: `How many inches are in ${ft} feet?`, ans: ans.toString(), distractors: [(ft * 10).toString(), (ft + 12).toString(), (ans + 12).toString()], guide: `1 foot = 12 inches. ${ft} × 12 = ${ans} inches.` };
+            }},
+            { type: "LineData", anchor: "D-M.2.1.1", openEnded: false, gen: () => {
+                return { q: `On a line plot, if one value has the most X marks above it, that value is the:`, ans: "Mode", distractors: ["Mean", "Median", "Range"], guide: `The mode is the value that appears most frequently. On a line plot, the tallest stack of Xs shows the mode.` };
+            }},
+            { type: "MultZero", anchor: "A-T.1.1.2", openEnded: false, gen: () => {
+                const a = rand(2, 12); const power = rand(2, 5); const multiplier = Math.pow(10, power); const ans = a * multiplier;
+                return { q: `What is ${a} × ${multiplier}?`, ans: ans.toString(), distractors: [(a * multiplier / 10).toString(), (a + multiplier).toString(), (ans * 10).toString()], guide: `Multiply ${a} by ${multiplier} by adding ${power} zero${power > 1 ? 's' : ''} to ${a}: ${a} × ${multiplier} = ${ans}.` };
+            }},
+
+            // ===== 2024 GRADE 5 SET =====
+
+            { type: "FractionAddition", anchor: "A-F.1.1.1", openEnded: false, gen: () => {
+                const n1 = rand(1, 5); const d1 = rand(4, 10); const n2 = rand(1, 5); const d2 = rand(7, 12);
+                const num = (n1 * d2) + (n2 * d1); const den = d1 * d2;
+                return { q: `Add: ${n1}/${d1} + ${n2}/${d2}`, ans: `${num}/${den}`, distractors: [`${n1 + n2}/${d1 + d2}`, `${num}/${den + 5}`, `${n1}/${den}`], guide: `Find common denominator: ${d1}×${d2}=${den}. New numerators: ${n1 * d2} and ${n2 * d1}. Sum: ${num}/${den}.` };
+            }},
+            { type: "PlaceValue1_10", anchor: "A-T.1.1.1", openEnded: false, gen: () => {
+                const d = rand(1, 9);
+                return { q: `In 52.${d}7, the ${d} is in the tenths place. Which place is 1/10 its value?`, ans: "hundredths", distractors: ["ones", "tens", "thousandths"], guide: "Each place to the right is 1/10 the value of the place to its left." };
+            }},
+            { type: "DecimalRounding", anchor: "A-T.1.1.5", openEnded: false, gen: () => {
+                const v = rand(100, 999) / 10000;
+                return { q: `Round ${v.toFixed(5)} to the nearest thousandth.`, ans: v.toFixed(3), distractors: [v.toFixed(2), v.toFixed(4), v.toFixed(1)], guide: "Look at the 4th decimal digit to determine if you round up or stay." };
+            }},
+            { type: "DecimalLogic", anchor: "A-T.2.1", openEnded: false, gen: () => {
+                const total = rand(8, 12); const d1 = 15; const d2 = 20;
+                const v1 = total / d1; const v2 = total / d2;
+                return { q: `A ${total}kg block is split into ${d1} packs and then ${d2} packs. Difference per pack?`, ans: (v1 - v2).toFixed(2), distractors: [v1.toFixed(2), v2.toFixed(2), (v1 + v2).toFixed(2)], guide: `${total}/${d1}=${v1.toFixed(2)}. ${total}/${d2}=${v2.toFixed(2)}. Difference: ${(v1 - v2).toFixed(2)}.` };
+            }},
+            { type: "MultAlgo", anchor: "A-T.2.1.1", openEnded: false, gen: () => {
+                const a = rand(100, 500); const b = rand(11, 49);
+                return { q: `Calculate ${a} × ${b}`, ans: (a * b).toString(), distractors: [(a * (b - 1)).toString(), (a * 10).toString(), (a * b - 100).toString()], guide: `Standard algorithm: ${a} × ${b % 10} plus ${a} × ${b - b % 10}.` };
+            }},
+            { type: "Div4x2", anchor: "A-T.2.1.2", openEnded: false, gen: () => {
+                const q = rand(15, 65); const d = 18;
+                return { q: `$${q * d} earned over ${d} weeks. Weekly?`, ans: q.toString(), distractors: [(q - 5).toString(), (q + 2).toString(), d.toString()], guide: `Total divided by weeks: ${q * d} ÷ ${d} = ${q}.` };
+            }},
+            { type: "FracDivWord", anchor: "A-F.2.1", openEnded: false, gen: () => {
+                const w = rand(4, 24); const p = 4;
+                return { q: `${w} lbs turkey, 1/${p} lb per sandwich. Total sandwiches?`, ans: (w * p).toString(), distractors: [w.toString(), p.toString(), (w / p).toString()], guide: `${w} ÷ 1/${p} is the same as ${w} × ${p} = ${w * p}.` };
+            }},
+            { type: "DecimalEquality", anchor: "A-T.1.1.4", openEnded: false, gen: () => {
+                const v = rand(1, 9);
+                return { q: `Compare 4.${v}0 and 4.${v}.`, ans: "Equal", distractors: ["Greater", "Less", "Unknown"], guide: "Trailing zeros after a decimal do not change the value." };
+            }},
+            { type: "Power10", anchor: "A-T.1.1.2", openEnded: false, gen: () => {
+                const v = rand(41, 49) / 10; const p = 3;
+                return { q: `${v} × 10^${p} = ?`, ans: (v * 1000).toString(), distractors: [(v * 100).toString(), "0.0045", (v * 10000).toString()], guide: "Multiplying by 10^3 shifts the decimal 3 places right." };
+            }},
+            { type: "YCoord", anchor: "C-G.1.1", openEnded: false, gen: () => {
+                const x = rand(1, 15); const y = rand(1, 15);
+                return { q: `In point (${x}, ${y}), what is the y-coordinate?`, ans: y.toString(), distractors: [x.toString(), "0", (x + y).toString()], guide: "The second number in an ordered pair is always Y." };
+            }},
+            { type: "RectVol", anchor: "B-O.3.1.1", openEnded: false, gen: () => {
+                const l = rand(4, 20); const w = rand(2, 10); const h = 2;
+                return { q: `Volume of ${l}x${w}x${h} box?`, ans: (l * w * h).toString(), distractors: [(l * w).toString(), (l + w + h).toString(), (l * w * h / 2).toString()], guide: `L × W × H = ${l} × ${w} × ${h} = ${l * w * h}.` };
+            }},
+            { type: "BaseAreaVol", anchor: "B-O.3.1.2", openEnded: false, gen: () => {
+                const b = rand(10, 60); const h = rand(2, 10);
+                return { q: `Base area ${b}, height ${h}. Volume?`, ans: (b * h).toString(), distractors: [(b + h).toString(), b.toString(), h.toString()], guide: `Volume = Base Area × Height = ${b} × ${h}.` };
+            }},
+            { type: "FracOfWhole", anchor: "A-F.2.1.2", openEnded: false, gen: () => {
+                const w = rand(3, 10) * 3;
+                return { q: `What is 2/3 of ${w}?`, ans: (w / 3 * 2).toString(), distractors: [(w / 3).toString(), (w * 2).toString(), (w - 3).toString()], guide: `(${w} ÷ 3) × 2 = ${w / 3 * 2}.` };
+            }},
+            { type: "MixedSub", anchor: "A-F.1.1.1", openEnded: false, gen: () => {
+                const w = rand(4, 12);
+                return { q: `${w} - 2 1/3 = ?`, ans: `${w - 3} 2/3`, distractors: [`${w - 2} 1/3`, `${w - 2} 2/3`, `${w - 3} 1/3`], guide: `Borrow from whole: ${w - 1} 3/3 - 2 1/3 = ${w - 3} 2/3.` };
+            }},
+            { type: "Hierarchy", anchor: "C-G.2.1.1", openEnded: false, gen: () => ({
+                q: "Which property makes a square a rectangle?", ans: "4 right angles", distractors: ["4 equal sides", "No parallel lines", "3 sides"], guide: "A rectangle is any quadrilateral with four 90-degree angles."
+            })},
+            { type: "PatternRel", anchor: "B-O.1.1.2", openEnded: false, gen: () => {
+                const a = rand(2, 8); const b = a * 2;
+                return { q: `Rule A: +${a}, Rule B: +${b}. B is __ times A?`, ans: "2", distractors: ["3", "4", "0"], guide: `${b} is exactly twice ${a}.` };
+            }},
+
+            // ===== 2023 GRADE 5 SET =====
+
+            { type: "FracSub5", anchor: "A-F.1", openEnded: false, gen: () => ({
+                q: "7/10 - 2/5 = ?", ans: "3/10", distractors: ["5/5", "5/10", "9/10"], guide: "7/10 - 4/10 = 3/10."
+            })},
+            { type: "OrderOps5", anchor: "B-O.1.1.1", openEnded: false, gen: () => {
+                const a = rand(2, 12); const b = rand(2, 8);
+                return { q: `(${a} + ${b}) × 2 = ?`, ans: ((a + b) * 2).toString(), distractors: [(a + b * 2).toString(), (a + b).toString(), "20"], guide: `Solve parenthesis first: ${a + b} × 2 = ${(a + b) * 2}.` };
+            }},
+            { type: "DecMult5", anchor: "A-T.2.1.1", openEnded: false, gen: () => ({
+                q: "0.5 × 0.8 = ?", ans: "0.4", distractors: ["4.0", "0.04", "1.3"], guide: "5 × 8 = 40. Shift decimal two spots."
+            })},
+            { type: "TriClass5", anchor: "C-G.2.1.1", openEnded: false, gen: () => ({
+                q: "Triangle with no equal sides?", ans: "Scalene", distractors: ["Isosceles", "Equilateral", "Right"], guide: "Scalene triangles have 3 different side lengths."
+            })},
+            { type: "UnitConv", anchor: "D-M.1.1.1", openEnded: false, gen: () => {
+                const f = rand(2, 25);
+                return { q: `${f} feet = __ inches?`, ans: (f * 12).toString(), distractors: [(f * 10).toString(), "12", (f + 12).toString()], guide: `${f} × 12 = ${f * 12}.` };
+            }},
+            { type: "DecimalDiv5", anchor: "A-T.2.1.3", openEnded: false, gen: () => ({
+                q: "2.4 ÷ 0.6 = ?", ans: "4", distractors: ["0.4", "40", "1.8"], guide: "How many 6s in 24?"
+            })},
+            { type: "LineData5", anchor: "D-M.2.1.1", openEnded: false, gen: () => ({
+                q: "If a plot has 4 dots at 1/2 lb, total weight?", ans: "2 lbs", distractors: ["4 lbs", "1/2 lb", "1 lb"], guide: "4 × 1/2 = 2."
+            })},
+            { type: "Power10Pattern", anchor: "A-T.1.1.2", openEnded: false, gen: () => ({
+                q: "100 × 0.007 = ?", ans: "0.7", distractors: ["0.07", "7", "0.0007"], guide: "Move decimal 2 spots right."
+            })},
+            { type: "VolUnitCubes", anchor: "B-O.3.1.1", openEnded: false, gen: () => ({
+                q: "A box holds 2 layers of 12 cubes. Volume?", ans: "24", distractors: ["14", "12", "48"], guide: "2 × 12 = 24."
+            })},
+            { type: "LCDSearch", anchor: "A-F.1.1", openEnded: false, gen: () => ({
+                q: "LCD for 1/4 and 1/6?", ans: "12", distractors: ["24", "10", "2"], guide: "12 is the smallest multiple of both."
+            })},
+            { type: "ExpFormWord", anchor: "A-T.1.1.3", openEnded: false, gen: () => ({
+                q: "What is (5 x 10) + (3 x 0.1)?", ans: "50.3", distractors: ["5.3", "503", "50.03"], guide: "50 + 0.3 = 50.3."
+            })},
+            { type: "CoordinateDist", anchor: "C-G.1.1.2", openEnded: false, gen: () => ({
+                q: "Distance from (2,3) to (2,7)?", ans: "4", distractors: ["2", "10", "5"], guide: "Subtract Y values: 7 - 3 = 4."
+            })},
+            { type: "DecimalComp", anchor: "A-T.1.1.4", openEnded: false, gen: () => ({
+                q: "Which is largest? 0.4, 0.405, 0.045", ans: "0.405", distractors: ["0.4", "0.045", "Equal"], guide: "Compare place values: 0.405 is the most."
+            })},
+            { type: "MultWholeFrac", anchor: "A-F.2.1.3", openEnded: false, gen: () => ({
+                q: "1/5 × 20 = ?", ans: "4", distractors: ["100", "25", "5"], guide: "20 ÷ 5 = 4."
+            })},
+            { type: "Parallelogram5", anchor: "C-G.2", openEnded: false, gen: () => ({
+                q: "Do all parallelograms have 4 right angles?", ans: "No", distractors: ["Yes", "Only squares", "Only rhombi"], guide: "Only rectangles and squares have 4 right angles."
+            })},
+            { type: "RoundingTenth", anchor: "A-T.1.1.5", openEnded: false, gen: () => ({
+                q: "Round 5.24 to nearest tenth.", ans: "5.2", distractors: ["5.3", "5.0", "5.25"], guide: "4 is less than 5, stay at 0.2."
+            })}
+        ],
+        6: [
+            { type: "Div Frac", anchor: "Divide fractions.", openEnded: false, gen: () => {
+                const n1 = rand(2, 15); const d1 = rand(n1+1, 20); const n2 = rand(1, 10); const d2 = rand(n2+1, 16);
+                const rn = n1 * d2; const rd = d1 * n2; const g = gcd(rn, rd); const sn = rn/g; const sd = rd/g;
+                const whole = Math.floor(sn/sd); const rem = sn % sd;
+                const ans = whole > 0 ? (rem > 0 ? `${whole} ${rem}/${sd}` : whole.toString()) : `${sn}/${sd}`;
+                return { q: `${n1}/${d1} ÷ ${n2}/${d2} = ?`, ans: ans, distractors: [`${n1*n2}/${d1*d2}`, `${d1}/${n1}`, `${n2}/${d2}`], guide: `Flip and multiply: ${n1}/${d1} × ${d2}/${n2} = ${rn}/${rd} = ${ans}.` };
+            }},
+            { type: "GCF", anchor: "GCF of factorizations.", openEnded: false, gen: () => {
+                const a = rand(6, 120); const b = rand(6, 120); const g = gcd(a, b);
+                return { q: `What is the greatest common factor of ${a} and ${b}?`, ans: g.toString(), distractors: [(a*b).toString(), Math.min(a,b).toString(), "1"], guide: `List factors of both and find the largest shared one. GCF(${a}, ${b}) = ${g}.` };
+            }},
+            { type: "Number Line", anchor: "Opposite directions on number line.", openEnded: false, gen: () => {
+                return { q: `One bank account balance is positive and another is negative. Where are they located on a number line?`, ans: "Opposite sides of 0", distractors: ["Same side of 0", "Both at 0", "To the right of 10"], guide: `Positive numbers are always to the right of zero, and negatives are to the left.` };
+            }},
+            { type: "Comp Integers", anchor: "Order rational numbers.", openEnded: false, gen: () => {
+                const neg = -rand(50, 999); const pos = rand(20, 800);
+                return { q: `Compare ${neg} and ${pos}.`, ans: `${neg} < ${pos}`, distractors: [`${neg} > ${pos}`, `${neg} = ${pos}`, `${pos} < 0`], guide: `Any negative number is always less than any positive number.` };
+            }},
+            { type: "Ratio Lang", anchor: "Use ratio language.", openEnded: false, gen: () => {
+                const a = rand(2, 15); const b = rand(2, 12);
+                const item1 = choose(["paintings", "cats", "apples", "boys"]);
+                const item2 = choose(["photos", "dogs", "oranges", "girls"]);
+                return { q: `The ratio of ${item1} to ${item2} is ${a}:${b}. What does this mean?`, ans: `${a} ${item1} for every ${b} ${item2}`, distractors: [`${b} ${item1} for every ${a} ${item2}`, `${a-b} more ${item2}`, `${a+b} total`], guide: `The order of the ratio must match the order of the items: ${a} corresponds to ${item1}.` };
+            }},
+            { type: "Rate Table", anchor: "Unit rate from tables.", openEnded: false, gen: () => {
+                const rate = rand(2, 15); const time1 = rand(10, 60); const cost1 = rate * time1; const time2 = rand(80, 500);
+                const ans = rate * time2;
+                return { q: `If ${time1} minutes costs $${(cost1/100).toFixed(2)}, how much does ${time2} minutes cost?`, ans: `$${(ans/100).toFixed(2)}`, distractors: [`$${((ans-50)/100).toFixed(2)}`, `$${((ans+100)/100).toFixed(2)}`, `$${(cost1/100).toFixed(2)}`], guide: `Rate = $${(cost1/100).toFixed(2)} / ${time1} = $${(rate/100).toFixed(4)}/min. × ${time2} = $${(ans/100).toFixed(2)}.` };
+            }},
+            { type: "Comp Rates", anchor: "Unit price problems.", openEnded: false, gen: () => {
+                const r1 = rand(7, 25); const r2 = rand(2, 10); const hrs = rand(2, 12); const ans = (r1 - r2) * hrs;
+                return { q: `Group A picks ${r1} per hour. Group B picks ${r2} per hour. What is the difference in total picked after ${hrs} hours?`, ans: ans.toString(), distractors: [(r1-r2).toString(), (r1*hrs).toString(), (r2*hrs).toString()], guide: `Difference per hour = ${r1} - ${r2} = ${r1-r2}. Total difference = ${r1-r2} × ${hrs} = ${ans}.` };
+            }},
+            { type: "Equations", anchor: "Solve 1-step equations.", openEnded: false, gen: () => {
+                const ans = rand(10, 150) / 10; const part = rand(10, 120) / 10; const total = +(ans + part).toFixed(1);
+                return { q: `Total weight is ${total} lbs. One item is ${part} lbs. What is the weight of the other?`, ans: ans.toFixed(1), distractors: [total.toString(), (ans+1).toFixed(1), part.toString()], guide: `Subtract: ${total} - ${part} = ${ans.toFixed(1)}.` };
+            }},
+            { type: "Variables", anchor: "Use variables in context.", openEnded: false, gen: () => {
+                const fee = rand(20, 200); const perPerson = rand(2, 12); const teachers = rand(2, 10);
+                return { q: `In the expression ${fee} + ${perPerson}(${teachers} + x), if ${teachers} is the number of teachers, what does x most likely represent?`, ans: "number of students", distractors: ["total cost", "the fee", "number of days"], guide: `In the grouping (${teachers} + x), x is being added to the count of people (teachers), so it's students.` };
+            }},
+            { type: "Trap Area", anchor: "Area of trapezoids.", openEnded: false, gen: () => {
+                const h = rand(5, 80); const b1 = rand(15, 120); const b2 = rand(40, 250); const ans = 0.5 * h * (b1 + b2);
+                return { q: `Find the area of a trapezoid with height ${h} and bases ${b1} and ${b2}.`, ans: ans.toString(), distractors: [(h*(b1+b2)).toString(), (h*b1).toString(), (b1+b2).toString()], guide: `Area = 1/2 × ${h} × (${b1} + ${b2}) = ${h/2} × ${b1+b2} = ${ans}.` };
+            }},
+            { type: "Surf Area", anchor: "Nets for surface area.", openEnded: false, gen: () => {
+                const l = rand(4, 25); const w = rand(2, 15); const h = rand(2, 15); const ans = 2*(l*w + l*h + w*h);
+                return { q: `Calculate the surface area of a ${l}×${w}×${h} rectangular prism.`, ans: ans.toString(), distractors: [(l*w*h).toString(), (l*w+l*h+w*h).toString(), (2*l*w).toString()], guide: `SA = 2(${l*w} + ${l*h} + ${w*h}) = 2(${l*w+l*h+w*h}) = ${ans}.` };
+            }},
+            { type: "Box Plot", anchor: "Find median in data.", openEnded: false, gen: () => {
+                const mid1 = rand(30, 150); const mid2 = mid1 + rand(2, 30); const ans = (mid1 + mid2) / 2;
+                return { q: `In a data set, the two middle values are ${mid1} and ${mid2}. What is the median?`, ans: ans.toString(), distractors: [mid1.toString(), mid2.toString(), (mid1+mid2).toString()], guide: `Average the two middle numbers: (${mid1} + ${mid2}) / 2 = ${ans}.` };
+            }},
+            { type: "MAD", anchor: "Mean Absolute Deviation.", openEnded: false, gen: () => {
+                const sum = rand(10, 80); const n = rand(4, 15);
+                return { q: `If the total distance of all values from the mean is ${sum} and there are ${n} values, which expression finds the MAD?`, ans: `${sum} ÷ ${n}`, distractors: [`${sum} × ${n}`, `${sum} + ${n}`, `${n} ÷ ${sum}`], guide: `MAD = (Sum of distances) / (Number of values) = ${sum} ÷ ${n}.` };
+            }},
+            { type: "Histogram", anchor: "Interpret histograms.", openEnded: false, gen: () => {
+                return { q: `If an interval on a histogram has a frequency of 0, what does this represent in the data?`, ans: "a gap", distractors: ["a peak", "symmetry", "the mean"], guide: `Zero frequency means no data points fall in that range, creating a visual gap.` };
+            }},
+            { type: "Stats Question", anchor: "Identify statistical questions.", openEnded: false, gen: () => {
+                const good = choose(["How many hours do students sleep?", "How far do students live from school?", "How many pets do families own?"]);
+                return { q: `Which of these is a statistical question?`, ans: good, distractors: ["What is 5+5?", "How old is the current President?", "Is 7 a prime number?"], guide: `A statistical question expects a range of different answers from a group.` };
+            }},
+            { type: "AbsVal", anchor: "A-N.3.2.1", openEnded: false, gen: () => {
+                const n = rand(1, 150);
+                return { q: `What is the absolute value of -${n}?`, ans: n.toString(), distractors: [(-n).toString(), "0", (n + 1).toString()], guide: `The absolute value of a number is its distance from 0. |-${n}| = ${n}.` };
+            }},
+            { type: "DecMult", anchor: "A-N.2.1", openEnded: false, gen: () => {
+                const a = rand(11, 99); const b = rand(2, 15); const product = a * b; const ans = (product / 10).toFixed(1);
+                return { q: `Multiply: ${(a / 10).toFixed(1)} × ${b}`, ans: ans, distractors: [(product / 100).toFixed(2), product.toString(), (product / 10 + 1).toFixed(1)], guide: `${(a / 10).toFixed(1)} × ${b}: ignore the decimal, ${a} × ${b} = ${product}. Place the decimal: ${ans}.` };
+            }},
+            { type: "Percents", anchor: "A-R.1.1.5", openEnded: false, gen: () => {
+                const pct = rand(1, 9) * 10; const whole = rand(2, 50) * 10; const ans = pct * whole / 100;
+                return { q: `What is ${pct}% of ${whole}?`, ans: ans.toString(), distractors: [(ans + 10).toString(), (whole - pct).toString(), pct.toString()], guide: `${pct}% of ${whole} = ${pct}/100 × ${whole} = ${ans}.` };
+            }},
+            { type: "DistProp", anchor: "B-E.1.1.4", openEnded: false, gen: () => {
+                const a = rand(2, 12); const b = rand(1, 15); const x = rand(2, 15); const ans = a * x + a * b;
+                return { q: `Use the distributive property to expand: ${a}(x + ${b}). Then evaluate for x = ${x}.`, ans: ans.toString(), distractors: [(a + x + b).toString(), (a * x).toString(), (a * b).toString()], guide: `${a}(x + ${b}) = ${a}x + ${a * b}. When x = ${x}: ${a}(${x}) + ${a * b} = ${a * x} + ${a * b} = ${ans}.` };
+            }},
+            { type: "InEq", anchor: "B-E.3.1.2", openEnded: false, gen: () => {
+                const add = rand(2, 20); const rhs = rand(add + 2, 50); const ans = rhs - add;
+                return { q: `Solve: x + ${add} > ${rhs}`, ans: `x > ${ans}`, distractors: [`x < ${ans}`, `x > ${rhs}`, `x = ${ans}`], guide: `Subtract ${add} from both sides: x > ${rhs} - ${add}, so x > ${ans}.` };
+            }},
+            { type: "AreaTri", anchor: "C-G.1.1.1", openEnded: false, gen: () => {
+                const b = rand(3, 30); const h = rand(2, 24); const ans = (b * h) / 2;
+                return { q: `Find the area of a triangle with base ${b} and height ${h}.`, ans: ans.toString(), distractors: [(b * h).toString(), (b + h).toString(), (ans + b).toString()], guide: `Area = 1/2 × base × height = 1/2 × ${b} × ${h} = ${ans}.` };
+            }},
+            { type: "Mean", anchor: "D-S.1.1", openEnded: false, gen: () => {
+                const a = rand(10, 30); const b = rand(10, 30); const c = rand(10, 30); const sum = a + b + c; const ans = (sum / 3).toFixed(1);
+                return { q: `Find the mean of ${a}, ${b}, and ${c}.`, ans: sum % 3 === 0 ? (sum / 3).toString() : ans, distractors: [(sum).toString(), Math.max(a, b, c).toString(), Math.min(a, b, c).toString()], guide: `Mean = (${a} + ${b} + ${c}) / 3 = ${sum} / 3 = ${sum % 3 === 0 ? sum / 3 : ans}.` };
+            }},
+            { type: "Mode", anchor: "D-S.1.1", openEnded: false, gen: () => {
+                const mode = rand(2, 9); const other1 = mode + rand(1, 3); const other2 = mode - rand(1, 2);
+                return { q: `Find the mode of the data set: ${mode}, ${other1}, ${mode}, ${other2}, ${mode}`, ans: mode.toString(), distractors: [other1.toString(), other2.toString(), ((mode + other1 + other2) / 3).toFixed(0)], guide: `The mode is the number that appears most often. ${mode} appears 3 times.` };
+            }},
+            { type: "CoordRef", anchor: "A-N.3", openEnded: false, gen: () => {
+                const x = rand(1, 8); const y = rand(1, 8);
+                return { q: `If the point (${x}, ${y}) is reflected over the x-axis, what are the new coordinates?`, ans: `(${x}, -${y})`, distractors: [`(-${x}, ${y})`, `(-${x}, -${y})`, `(${y}, ${x})`], guide: `Reflecting over the x-axis negates the y-coordinate: (${x}, ${y}) becomes (${x}, -${y}).` };
+            }},
+            { type: "NetID", anchor: "C-G.1", openEnded: false, gen: () => {
+                return { q: `A net made of 6 squares can be folded into which 3D shape?`, ans: "Cube", distractors: ["Rectangular prism", "Pyramid", "Cylinder"], guide: `A cube has 6 square faces. A net of 6 squares (arranged correctly) folds into a cube.` };
+            }},
+            { type: "InDep", anchor: "B-E.2", openEnded: false, gen: () => {
+                return { q: `In the equation y = 3x + 2, which is the independent variable?`, ans: "x", distractors: ["y", "3", "2"], guide: `The independent variable is the input (x). The dependent variable (y) changes based on the value of x.` };
+            }},
+
+            // ===== 2024 GRADE 6 SET =====
+
+            { type: "FracDiv6", anchor: "A-N.1.1.1", openEnded: false, gen: () => ({
+                q: "4/5 ÷ 2/3 = ?", ans: "1 1/5", distractors: ["2/15", "5/6", "4 4/5"], guide: "4/5 × 3/2 = 6/5 = 1 1/5."
+            })},
+            { type: "GCFFactor", anchor: "A-N.2.2.1", openEnded: false, gen: () => ({
+                q: "GCF of a·a·b·b and b·b·c?", ans: "b·b", distractors: ["a·c", "a·b·c", "b"], guide: "Common factors are b and b."
+            })},
+            { type: "NumberLinePos", anchor: "A-N.3.1.1", openEnded: false, gen: () => ({
+                q: "Pos vs Neg account. Relation?", ans: "Opposite sides of 0", distractors: ["Same side", "At 0", "Right of 10"], guide: "0 separates positive and negative."
+            })},
+            { type: "IntCompare", anchor: "A-N.3.2.1", openEnded: false, gen: () => {
+                const neg = -rand(100, 500); const pos = rand(50, 300);
+                return { q: `Compare ${neg} and ${pos}.`, ans: `${neg} < ${pos}`, distractors: [`${neg} > ${pos}`, "Equal", `${pos} < 0`], guide: "Negative is less than positive." };
+            }},
+            { type: "RatioContext", anchor: "A-R.1.1.1", openEnded: false, gen: () => {
+                const a = rand(3, 7); const b = rand(2, 5);
+                const item1 = choose(["paintings", "cats", "apples", "boys"]);
+                const item2 = choose(["photos", "dogs", "oranges", "girls"]);
+                return { q: `Ratio ${a}:${b} ${item1} to ${item2} means?`, ans: `${a} ${item1} for ${b} ${item2}`, distractors: [`${b} for ${a}`, `${a - b} more`, `${a + b} total`], guide: "Follow the word order." };
+            }},
+            { type: "RateCalc", anchor: "A-R.1.1.3", openEnded: false, gen: () => ({
+                q: "30 min = $1.60. 210 min?", ans: "$11.20", distractors: ["$10.40", "$12.80", "$14.40"], guide: "$1.60/30 = rate. Rate × 210."
+            })},
+            { type: "RateDiff", anchor: "A-R.1.1.4", openEnded: false, gen: () => {
+                const a = rand(8, 12); const b = rand(2, 5); const hrs = rand(3, 6);
+                const ans = (a - b) * hrs;
+                return { q: `A: ${a}/hr, B: ${b}/hr. Diff in ${hrs} hrs?`, ans: ans.toString(), distractors: [(a - b).toString(), (a * hrs).toString(), (b * hrs).toString()], guide: `${a - b} diff × ${hrs} hours = ${ans}.` };
+            }},
+            { type: "OneStepEq", anchor: "B-E.2.1.3", openEnded: false, gen: () => ({
+                q: "b + 3.875 = 8.25. b?", ans: "4.375", distractors: ["4.125", "12.125", "5"], guide: "8.25 - 3.875."
+            })},
+            { type: "VariableLogic", anchor: "B-E.3.1", openEnded: false, gen: () => {
+                const fee = rand(40, 80); const perPerson = rand(3, 6); const teachers = rand(2, 5);
+                return { q: `In the expression ${fee} + ${perPerson}(${teachers} + x), if ${teachers} is the number of teachers, what does x most likely represent?`, ans: "students", distractors: ["cost", "fee", "days"], guide: `x is added to teachers in the grouping, so it represents students.` };
+            }},
+            { type: "TrapezoidArea6", anchor: "C-G.1.1.1", openEnded: false, gen: () => {
+                const h = rand(10, 40); const b1 = rand(30, 70); const b2 = rand(80, 150);
+                const ans = 0.5 * h * (b1 + b2);
+                return { q: `H=${h}, B=${b1},${b2}. Area?`, ans: ans.toString(), distractors: [(h * b1).toString(), (h * (b1 + b2)).toString(), (b1 + b2).toString()], guide: `1/2 × ${h} × (${b1}+${b2}) = ${ans}.` };
+            }},
+            { type: "FracPrismVol", anchor: "C-G.1.1.2", openEnded: false, gen: () => ({
+                q: "1 2/3 × 1 1/2 × 3/5 = ?", ans: "1.5", distractors: ["2.2", "4.4", "1"], guide: "Multiply the three fractions: 5/3 × 3/2 × 3/5 = 45/30 = 1.5."
+            })},
+            { type: "SAPrism", anchor: "C-G.1.1.4", openEnded: false, gen: () => {
+                const l = rand(8, 14); const w = rand(3, 6); const h = rand(3, 6);
+                const sa = 2 * (l * w + l * h + w * h);
+                return { q: `SA of ${l}x${w}x${h} prism?`, ans: sa.toString(), distractors: [(l * w * h).toString(), (l * w + l * h + w * h).toString(), (2 * l * w).toString()], guide: `2(LW+LH+WH) = 2(${l * w}+${l * h}+${w * h}) = ${sa}.` };
+            }},
+            { type: "MedianSearch", anchor: "D-S.1.1.2", openEnded: false, gen: () => {
+                const a = rand(60, 80); const b = a + rand(5, 20);
+                const ans = (a + b) / 2;
+                return { q: `Median of ${a} and ${b}?`, ans: ans.toString(), distractors: [a.toString(), b.toString(), (a + b).toString()], guide: `Avg of middle two: (${a}+${b})/2 = ${ans}.` };
+            }},
+            { type: "MADCalc", anchor: "D-S.1.1.3", openEnded: false, gen: () => {
+                const sum = rand(14, 35); const n = rand(5, 9);
+                return { q: `Sum dist ${sum}, count ${n}. MAD?`, ans: `${sum}/${n}`, distractors: [(sum * n).toString(), (sum + n).toString(), (sum - n).toString()], guide: `Sum / Count = ${sum}/${n}.` };
+            }},
+            { type: "GapPlot", anchor: "D-S.1.1.1", openEnded: false, gen: () => ({
+                q: "Freq of 0 in interval means?", ans: "gap", distractors: ["peak", "skew", "mean"], guide: "Zero frequency = gap in data."
+            })},
+            { type: "StatQuestion6", anchor: "D-S.1.1.1", openEnded: false, gen: () => ({
+                q: "Which is statistical?", ans: "Student sleep hours", distractors: ["5+5", "King age", "Date"], guide: "A statistical question expects varied answers."
+            })},
+
+            // ===== 2023 GRADE 6 SET =====
+
+            { type: "RatioSimpl", anchor: "A-R.1", openEnded: false, gen: () => ({
+                q: "63 oz beans, 18 oz corn. Ratio?", ans: "7:2", distractors: ["2:7", "9:7", "7:9"], guide: "Divide by 9."
+            })},
+            { type: "AbsVal6", anchor: "A-N.3.2.1", openEnded: false, gen: () => {
+                const n = rand(10, 20);
+                return { q: `|-${n}| = ?`, ans: n.toString(), distractors: [(-n).toString(), "0", "1"], guide: "Positive distance from 0." };
+            }},
+            { type: "DecimalMulti6", anchor: "A-N.2.1", openEnded: false, gen: () => ({
+                q: "0.5 × 0.2 = ?", ans: "0.1", distractors: ["1.0", "0.01", "0.7"], guide: "Standard multiplication."
+            })},
+            { type: "PercentOf6", anchor: "A-R.1.1.5", openEnded: false, gen: () => {
+                const w = rand(7, 9) * 10;
+                return { q: `15% of ${w}?`, ans: (0.15 * w).toFixed(1), distractors: ["15", "8", "20"], guide: `0.15 × ${w} = ${(0.15 * w).toFixed(1)}.` };
+            }},
+            { type: "NumberOrder6", anchor: "A-N.3.1", openEnded: false, gen: () => ({
+                q: "-5 is to the __ of -2?", ans: "left", distractors: ["right", "above", "below"], guide: "Smaller is left on the number line."
+            })},
+            { type: "Distributive6", anchor: "B-E.1.1.4", openEnded: false, gen: () => {
+                const a = rand(2, 6); const b = rand(2, 9);
+                return { q: `${a}(x + ${b}) = ?`, ans: `${a}x + ${a * b}`, distractors: [`${a}x + ${b}`, `x + ${a * b}`, `${a + b}x`], guide: `Multiply both terms: ${a}x + ${a * b}.` };
+            }},
+            { type: "InEquality6", anchor: "B-E.3.1.2", openEnded: false, gen: () => {
+                const n = rand(5, 15);
+                return { q: `x + 5 > ${n}. Solve.`, ans: `x > ${n - 5}`, distractors: [`x < ${n - 5}`, `x = ${n - 5}`, `x > ${n}`], guide: `Subtract 5: x > ${n - 5}.` };
+            }},
+            { type: "TriangleArea6", anchor: "C-G.1.1.1", openEnded: false, gen: () => {
+                const b = rand(8, 12); const h = rand(4, 6);
+                return { q: `Base ${b}, height ${h} area?`, ans: (0.5 * b * h).toString(), distractors: [(b * h).toString(), (b + h).toString(), "10"], guide: `1/2 × ${b} × ${h} = ${0.5 * b * h}.` };
+            }},
+            { type: "MeanSet6", anchor: "D-S.1.1", openEnded: false, gen: () => {
+                const a = rand(2, 8); const b = rand(2, 8); const c = rand(2, 8);
+                const sum = a + b + c;
+                return { q: `Mean of ${a}, ${b}, ${c}?`, ans: (sum / 3).toFixed(1), distractors: [sum.toString(), a.toString(), c.toString()], guide: `Sum/Count = ${sum}/3.` };
+            }},
+            { type: "ModeSet6", anchor: "D-S.1.1", openEnded: false, gen: () => ({
+                q: "Mode of 1, 2, 2, 3?", ans: "2", distractors: ["1", "3", "8"], guide: "Most frequent value."
+            })},
+            { type: "ReflectX6", anchor: "A-N.3", openEnded: false, gen: () => {
+                const x = rand(1, 5); const y = rand(1, 5);
+                return { q: `Reflect (${x}, ${y}) over x-axis?`, ans: `(${x}, -${y})`, distractors: [`(-${x}, ${y})`, `(-${x}, -${y})`, `(${y}, ${x})`], guide: "Change Y sign." };
+            }},
+            { type: "UnitRateWord6", anchor: "A-R.1.1", openEnded: false, gen: () => {
+                const total = rand(3, 8) * 5; const items = rand(3, 8);
+                const rate = total / items;
+                return { q: `$${total} for ${items} books. Per book?`, ans: rate.toString(), distractors: [items.toString(), (total * items).toString(), (total - items).toString()], guide: `${total}/${items} = ${rate}.` };
+            }},
+            { type: "NetCube6", anchor: "C-G.1", openEnded: false, gen: () => ({
+                q: "Net with 6 squares?", ans: "Cube", distractors: ["Pyramid", "Prism", "Cylinder"], guide: "6 faces = cube."
+            })},
+            { type: "RangeCalc6", anchor: "D-S.1", openEnded: false, gen: () => {
+                const max = rand(10, 15); const min = rand(1, 3);
+                return { q: `Max ${max}, Min ${min}. Range?`, ans: (max - min).toString(), distractors: [(max + min).toString(), "5", "20"], guide: `Max - Min = ${max - min}.` };
+            }},
+            { type: "Independent6", anchor: "B-E.2", openEnded: false, gen: () => ({
+                q: "y = 5x. Which is independent?", ans: "x", distractors: ["y", "5", "None"], guide: "x is the input variable."
+            })},
+            { type: "Squared6", anchor: "B-E.1", openEnded: false, gen: () => {
+                const n = rand(3, 9);
+                return { q: `${n} squared?`, ans: (n * n).toString(), distractors: [(n * 2).toString(), n.toString(), (n * n + n).toString()], guide: `${n} × ${n} = ${n * n}.` };
+            }}
+        ],
+        7: [
+            { type: "Int Add", anchor: "Add/Sub rational numbers.", openEnded: false, gen: () => {
+                const a = -rand(15, 40); const b = rand(10, 30); const c = -rand(1, 10); const ans = a + b + c;
+                return { q: `Simplify: ${a} + ${b} + (${c})`, ans: ans.toString(), distractors: [(a-b+c).toString(), (ans+2).toString(), (a+b-c).toString()], guide: `${a} + ${b} = ${a+b}. Then ${a+b} + (${c}) = ${ans}.` };
+            }},
+            { type: "Avg Change", anchor: "Real life rational ops.", openEnded: false, gen: () => {
+                const total = -(rand(1, 9) / 100); const days = rand(3, 6);
+                return { q: `The total change in price over ${days} days is ${total}. Is the average daily change positive or negative?`, ans: "Negative", distractors: ["Positive", "Zero", "Not enough info"], guide: `A negative total (${total}) divided by a positive number of days (${days}) results in a negative average.` };
+            }},
+            { type: "Rat Mult", anchor: "Mult/Div rational numbers.", openEnded: false, gen: () => {
+                const lap = rand(20, 50) / 100; const laps = rand(25, 45) / 10; const ans = (lap * laps).toFixed(2);
+                return { q: `A track is ${lap}km. If a runner goes around ${laps} times, total distance?`, ans: ans, distractors: [(lap+laps).toFixed(2), (lap*10).toFixed(2), (laps).toString()], guide: `${lap} × ${laps} = ${ans} km.` };
+            }},
+            { type: "Prop Logic", anchor: "Recognize proportional relations.", openEnded: false, gen: () => {
+                const v1 = rand(10, 30); const v2 = v1 + rand(5, 20); const rate = (v2 / v1).toFixed(1);
+                return { q: `If ${v1} songs cost d dollars, how do you find the cost of ${v2} songs?`, ans: `multiply d by ${rate}`, distractors: [`add ${v2-v1} to d`, `subtract ${v2-v1} from d`, `divide d by ${rate}`], guide: `${v2} is ${rate} times ${v1}, so the cost must be multiplied by ${rate}.` };
+            }},
+            { type: "Unit Rate", anchor: "Constant of proportionality.", openEnded: false, gen: () => {
+                const rate = rand(4, 10); const hours = rand(10, 25) / 10; const pages = rate * hours;
+                return { q: `You type ${pages} pages in ${hours} hours. What is your unit rate in pages per hour?`, ans: rate.toString(), distractors: [(rate-1).toString(), (rate+2).toString(), pages.toString()], guide: `Rate = Pages / Hours = ${pages} / ${hours} = ${rate}.` };
+            }},
+            { type: "Ratio Eq", anchor: "Represent relations as equations.", openEnded: false, gen: () => {
+                const a = rand(3, 6); const b = rand(2, 5); const cups = rand(15, 35) / 10;
+                return { q: `The ratio of chips to walnuts is ${a}:${b}. If you use ${cups} cups of chips, which equation finds the walnuts (x)?`, ans: `${cups}/x = ${a}/${b}`, distractors: [`x/${cups} = ${a}/${b}`, `${cups}/${b} = ${a}/x`, `${a}/${cups} = x/${b}`], guide: `Set up the proportion: (Chips/Walnuts) = (Chips/Walnuts). ${cups}/x = ${a}/${b}.` };
+            }},
+            { type: "Rate Graph", anchor: "Interpret points on graphs.", openEnded: false, gen: () => {
+                return { q: `On a proportional graph, where do you look to find the unit rate?`, ans: "the y-value when x=1", distractors: ["the origin", "the y-axis intercept", "the x-value when y=1"], guide: `The point (1, r) always gives the unit rate r.` };
+            }},
+            { type: "Scaling", anchor: "Solve ratio/percent problems.", openEnded: false, gen: () => {
+                const b = rand(400, 800) / 100; const inc = rand(500, 900) / 100; const ans = (b + inc).toFixed(2);
+                return { q: `An object weighing ${b}kg increases in mass by ${inc}kg. What is the new mass?`, ans: `${ans}`, distractors: [(inc-b).toFixed(2), inc.toString(), b.toString()], guide: `New Mass = Original + Increase = ${b} + ${inc} = ${ans}.` };
+            }},
+            { type: "Simplify", anchor: "Expand linear expressions.", openEnded: false, gen: () => {
+                const pVal = rand(2, 5); const constVal = rand(30, 80);
+                const ansP = pVal * 4; const ansC = constVal * 2;
+                return { q: `Simplify: 2(${pVal}p + ${constVal} + ${pVal}p)`, ans: `${ansP}p + ${ansC}`, distractors: [`${pVal*2}p + ${constVal}`, `${ansP}p + ${constVal}`, `${ansP+ansC}p`], guide: `Combine like terms: 2(${pVal*2}p + ${constVal}). Distribute: ${ansP}p + ${ansC}.` };
+            }},
+            { type: "Discount", anchor: "Percent discount logic.", openEnded: false, gen: () => {
+                const price = rand(15, 50) + 0.50; const pct = rand(1, 4) * 10;
+                return { q: `To find ${pct}% of $${price.toFixed(2)}, what is a correct mental math strategy?`, ans: `Find 10% and multiply by ${pct/10}`, distractors: [`Divide by ${pct}`, `Subtract $1`, `Add ${pct}%`], guide: `10% of $${price.toFixed(2)} is $${(price/10).toFixed(2)}. Multiply by ${pct/10} to get ${pct}%.` };
+            }},
+            { type: "Student Ratio", anchor: "Proportional word problems.", openEnded: false, gen: () => {
+                const b = rand(2, 5); const s = rand(4, 7); const sets = rand(3, 8); const totalB = b * sets; const ans = s * sets;
+                return { q: `If you need ${b} boxes for every ${s} students, how many students are there if you have ${totalB} boxes?`, ans: ans.toString(), distractors: [(totalB-b).toString(), (totalB+s).toString(), (ans+5).toString()], guide: `${totalB} / ${b} = ${sets} groups. ${sets} × ${s} = ${ans} students.` };
+            }},
+            { type: "Scale Map", anchor: "Scale drawing problems.", openEnded: false, gen: () => {
+                const scale = rand(5, 20); const dist = rand(20, 80) / 10; const ans = scale * dist;
+                return { q: `On a map, 1 inch = ${scale} miles. If two cities are ${dist} inches apart, actual distance?`, ans: ans.toString(), distractors: [dist.toString(), (dist+scale).toString(), (ans*10).toString()], guide: `Multiply inches by the scale: ${dist} × ${scale} = ${ans} miles.` };
+            }},
+            { type: "Circle", anchor: "Circle area/circumference.", openEnded: false, gen: () => {
+                const d = rand(4, 16) * 2; const r = d/2; const ans = r*r;
+                return { q: `A circle has a diameter of ${d}. What is its area in terms of π?`, ans: `${ans}π`, distractors: [`${d}π`, `${d*2}π`, `${d*d}π`], guide: `Radius is ${r}. Area = πr² = π(${r}²) = ${ans}π.` };
+            }},
+            { type: "Angles", anchor: "Facts about angles.", openEnded: false, gen: () => {
+                const a = rand(25, 65); const ans = 90 - a;
+                return { q: `Two angles are complementary. If one is ${a}°, what is the other?`, ans: `${ans}°`, distractors: [`${a}°`, `${180-a}°`, `180°`], guide: `Complementary angles sum to 90°. 90 - ${a} = ${ans}.` };
+            }},
+            { type: "Bias", anchor: "Gain info by sampling.", openEnded: false, gen: () => {
+                const group = choose(["swim team", "chess club", "band members", "basketball team"]);
+                return { q: `A student surveys only the ${group} to decide the new school mascot. This sample is:`, ans: "Biased", distractors: ["Random", "Systematic", "Representative"], guide: `Only asking one specific group does not represent the whole school population.` };
+            }},
+            { type: "Prob", anchor: "Simple probability 0 to 1.", openEnded: false, gen: () => {
+                const red = rand(2, 6); const blue = rand(4, 10); const total = red + blue; const ans = (red / total).toFixed(1);
+                return { q: `A bag has ${red} red and ${blue} blue marbles. Probability of picking red?`, ans: ans, distractors: [(blue/total).toFixed(1), red.toString(), blue.toString()], guide: `Probability = Favorable (${red}) / Total (${total}) = ${ans}.` };
+            }},
+            { type: "RatExp", anchor: "A-N.1.1", openEnded: false, gen: () => {
+                const a = rand(2, 6); const b = rand(2, 6); const c = rand(2, 5); const d = rand(2, 5);
+                const rn = a * d; const rd = b * c; const g = gcd(rn, rd); const sn = rn / g; const sd = rd / g;
+                return { q: `Multiply: ${a}/${b} × ${d}/${c}`, ans: sd === 1 ? sn.toString() : `${sn}/${sd}`, distractors: [`${a * c}/${b * d}`, `${a + d}/${b + c}`, `${b}/${a}`], guide: `Multiply across: (${a} × ${d}) / (${b} × ${c}) = ${rn}/${rd}${g > 1 ? ` = ${sn}/${sd}` : ''}.` };
+            }},
+            { type: "NumLineModel", anchor: "A-N.1.1", openEnded: false, gen: () => {
+                const a = rand(2, 10); const b = rand(1, a - 1);
+                return { q: `On a number line, to model ${a} - ${b}, you start at ${a} and move how many units in which direction?`, ans: `${b} units left`, distractors: [`${b} units right`, `${a} units left`, `${a} units right`], guide: `Subtraction means moving left on the number line. ${a} - ${b} means start at ${a} and move ${b} units left.` };
+            }},
+            { type: "Eq2Step", anchor: "B-E.2.2.1", openEnded: false, gen: () => {
+                const x = rand(2, 10); const a = rand(2, 5); const b = rand(1, 9); const c = a * x + b;
+                return { q: `Solve: ${a}x + ${b} = ${c}`, ans: `x = ${x}`, distractors: [`x = ${x + 1}`, `x = ${c}`, `x = ${x - 1}`], guide: `Subtract ${b}: ${a}x = ${c - b}. Divide by ${a}: x = ${(c - b)} ÷ ${a} = ${x}.` };
+            }},
+            { type: "UnitRateFrac", anchor: "A-R.1.1.1", openEnded: false, gen: () => {
+                const n = rand(2, 5); const d = rand(2, 4); const hours = rand(2, 4);
+                const totalN = n * hours; const ans = `${n}/${d}`;
+                return { q: `A painter uses ${totalN}/${d} gallons of paint in ${hours} hours. What is the unit rate in gallons per hour?`, ans: ans, distractors: [`${totalN}/${d * hours}`, `${d}/${n}`, `${hours}/${d}`], guide: `Divide total by hours: (${totalN}/${d}) ÷ ${hours} = ${totalN}/(${d} × ${hours}) = ${n}/${d} gallons per hour.` };
+            }},
+            { type: "TaxWord", anchor: "A-R.1.1.6", openEnded: false, gen: () => {
+                const price = rand(10, 50); const taxPct = rand(5, 10); const tax = (price * taxPct / 100).toFixed(2); const total = (price + parseFloat(tax)).toFixed(2);
+                return { q: `An item costs $${price}. Tax is ${taxPct}%. What is the total cost?`, ans: `$${total}`, distractors: [`$${price}`, `$${tax}`, `$${(price + taxPct).toFixed(2)}`], guide: `Tax = ${taxPct}% of $${price} = $${tax}. Total = $${price} + $${tax} = $${total}.` };
+            }},
+            { type: "InEqFlip", anchor: "B-E.2.2.2", openEnded: false, gen: () => {
+                const a = -rand(2, 5); const x = rand(2, 8); const b = a * x;
+                return { q: `Solve: ${a}x < ${b}`, ans: `x > ${x}`, distractors: [`x < ${x}`, `x > ${-x}`, `x = ${x}`], guide: `Divide both sides by ${a}. Since ${a} is negative, flip the inequality: x > ${b} ÷ ${a} = ${x}.` };
+            }},
+            { type: "SampleSize", anchor: "D-S.1.1", openEnded: false, gen: () => {
+                return { q: `A school has 800 students. Which sample would best represent the entire school?`, ans: "100 students chosen randomly from all grades", distractors: ["10 students from one class", "All students in the band", "5 teachers"], guide: `A random sample from all grades is more representative because it avoids bias toward any one group.` };
+            }},
+            { type: "AngleVert", anchor: "C-G.1.1.4", openEnded: false, gen: () => {
+                return { q: `When two lines intersect, the vertical (opposite) angles are always:`, ans: "Equal", distractors: ["Supplementary", "Complementary", "Right angles"], guide: `Vertical angles are the angles opposite each other when two lines cross. They are always equal in measure.` };
+            }},
+            { type: "PercentError", anchor: "A-R.1.1", openEnded: false, gen: () => {
+                const actual = rand(20, 50); const estimated = actual + rand(2, 8); const error = estimated - actual;
+                const pctError = ((error / actual) * 100).toFixed(1);
+                return { q: `The actual value is ${actual} and the estimated value is ${estimated}. What is the percent error?`, ans: `${pctError}%`, distractors: [`${error}%`, `${(error / estimated * 100).toFixed(1)}%`, `${actual}%`], guide: `Percent error = |${estimated} - ${actual}| / ${actual} × 100 = ${error}/${actual} × 100 = ${pctError}%.` };
+            }},
+            { type: "CrossSection", anchor: "C-G.1.1.3", openEnded: false, gen: () => {
+                return { q: `If you slice a cylinder horizontally (parallel to the base), the cross-section shape is a:`, ans: "Circle", distractors: ["Rectangle", "Triangle", "Oval"], guide: `A horizontal slice through a cylinder is parallel to its circular base, producing a circle.` };
+            }},
+            { type: "Simulate", anchor: "D-P.1.1.3", openEnded: false, gen: () => {
+                return { q: `To simulate a fair coin flip, which tool would give equally likely outcomes?`, ans: "A coin or random number generator with 2 outcomes", distractors: ["A 6-sided die", "A spinner with 3 sections", "Drawing from 5 cards"], guide: `A fair coin has exactly 2 equally likely outcomes (heads/tails), which matches a 50/50 probability model.` };
+            }},
+
+            // ===== 2024 GRADE 7 SET =====
+
+            { type: "IntegerSum", anchor: "A-N.1.1.1", openEnded: false, gen: () => {
+                const a = -rand(20, 30); const b = rand(15, 25); const c = -rand(2, 5); const ans = a + b + c;
+                return { q: `Simplify: ${a} + ${b} + (${c})`, ans: ans.toString(), distractors: [(a - b + c).toString(), (ans + 5).toString(), (Math.abs(ans)).toString()], guide: `${a} + ${b} = ${a + b}. Then ${a + b} + (${c}) = ${ans}.` };
+            }},
+            { type: "AvgDailyChange", anchor: "A-N.1.1.3", openEnded: false, gen: () => {
+                const total = -(rand(2, 8) / 100).toFixed(2);
+                return { q: `The total price change over 4 days was ${total}. Is the average daily change positive or negative?`, ans: "Negative", distractors: ["Positive", "Zero", "Undefined"], guide: "A negative total divided by a positive number of days is negative." };
+            }},
+            { type: "LapsToKM", anchor: "A-N.1.2.1", openEnded: false, gen: () => {
+                const track = rand(30, 40) / 100; const laps = rand(3, 5) + 0.5; const ans = (track * laps).toFixed(2);
+                return { q: `A track is ${track}km. Jamie runs ${laps} laps. Total km?`, ans: ans, distractors: [(track + laps).toFixed(2), (track * 10).toFixed(2), laps.toString()], guide: `${track} × ${laps} = ${ans} km.` };
+            }},
+            { type: "SongScaling", anchor: "A-R.1.1.1", openEnded: false, gen: () => {
+                const n1 = rand(10, 25); const factor = [1.5, 2, 2.5, 3][rand(0, 3)]; const n2 = n1 * factor;
+                return { q: `If ${n1} songs cost d dollars, how do you find the cost of ${n2} songs?`, ans: `multiply d by ${factor}`, distractors: [`add ${n2 - n1} to d`, `divide d by ${factor}`, "multiply d by 2"], guide: `${n2} is ${factor} times ${n1}, so multiply cost by ${factor}.` };
+            }},
+            { type: "UnitRatePages", anchor: "A-R.1.1.2", openEnded: false, gen: () => {
+                const p = rand(8, 12); const h = 1.5; const ans = (p / h).toFixed(1);
+                return { q: `Type ${p} pages in ${h} hours. Pages per hour?`, ans: ans, distractors: [p.toString(), (p * h).toFixed(1), h.toString()], guide: `${p} ÷ ${h} = ${ans}.` };
+            }},
+            { type: "RatioEquation", anchor: "A-R.1.1.3", openEnded: false, gen: () => {
+                const a = rand(3, 6); const b = rand(2, 5); const c = rand(2, 4);
+                return { q: `Ratio A:B is ${a}:${b}. If A is ${c}, find equation for B (x).`, ans: `${c}/x = ${a}/${b}`, distractors: [`x/${c} = ${a}/${b}`, `${c}/${a} = x/${b}`, `${a}/${c} = ${b}/x`], guide: "Set up parts as equivalent fractions." };
+            }},
+            { type: "GraphUnitRate", anchor: "A-R.1.1.5", openEnded: false, gen: () => ({
+                q: "On a proportional graph, the unit rate is the y-value when:", ans: "x = 1", distractors: ["x = 0", "y = 0", "x = y"], guide: "The point (1, r) represents the unit rate r."
+            })},
+            { type: "MassIncrease", anchor: "A-R.1.1.6", openEnded: false, gen: () => {
+                const b = rand(500, 800) / 100; const i = rand(600, 900) / 100;
+                return { q: `A ${b.toFixed(2)}kg object increases by ${i.toFixed(2)}kg. New mass?`, ans: (b + i).toFixed(2), distractors: [(i - b).toFixed(2), i.toFixed(2), (b * 2).toFixed(2)], guide: `${b.toFixed(2)} + ${i.toFixed(2)} = ${(b + i).toFixed(2)}.` };
+            }},
+            { type: "LinearSimplify", anchor: "B-E.1.1.1", openEnded: false, gen: () => {
+                const p = rand(2, 4); const c = rand(30, 80);
+                return { q: `Simplify 2(${p}p + ${c} + ${p}p)`, ans: `${p * 4}p + ${c * 2}`, distractors: [`${p * 2}p + ${c * 2}`, `${p * 4}p + ${c}`, `${p * 4 + c * 2}p`], guide: `2(${p * 2}p + ${c}) = ${p * 4}p + ${c * 2}.` };
+            }},
+            { type: "MentalPercent", anchor: "A-R.1.1.6", openEnded: false, gen: () => ({
+                q: "To find 20% of a value, you can:", ans: "Find 10% and multiply by 2", distractors: ["Divide by 20", "Subtract 20", "Multiply by 20"], guide: "10% is a base that can be doubled for 20%."
+            })},
+            { type: "MapScale7", anchor: "C-G.1.1.1", openEnded: false, gen: () => {
+                const s = rand(8, 12); const i = 4.5;
+                return { q: `Scale: 1 in = ${s} mi. 4.5 in = ?`, ans: (s * i).toString(), distractors: [s.toString(), i.toString(), (s + i).toString()], guide: `${i} × ${s} = ${s * i} miles.` };
+            }},
+            { type: "CirclePi", anchor: "C-G.1.1.2", openEnded: false, gen: () => {
+                const r = rand(3, 8);
+                return { q: `Diameter is ${r * 2}. Area in terms of π?`, ans: `${r * r}π`, distractors: [`${r * 2}π`, `${r * r * 4}π`, `${r}π`], guide: `Radius is ${r}. Area = πr² = ${r * r}π.` };
+            }},
+            { type: "Complementary7", anchor: "C-G.1.1.4", openEnded: false, gen: () => {
+                const a = rand(35, 55);
+                return { q: `Angle A is ${a}°. Find its complement.`, ans: (90 - a).toString(), distractors: [(180 - a).toString(), a.toString(), "90"], guide: `90 - ${a} = ${90 - a}.` };
+            }},
+            { type: "BiasSampling", anchor: "D-S.1.1.1", openEnded: false, gen: () => ({
+                q: "Surveying only the band members about the school menu is:", ans: "Biased", distractors: ["Random", "Systematic", "Normal"], guide: "It targets a specific subgroup rather than the whole population."
+            })},
+            { type: "MarbleProb", anchor: "D-P.1.1.1", openEnded: false, gen: () => {
+                const r = rand(2, 5); const b = rand(5, 10); const total = r + b;
+                return { q: `${r} red, ${b} blue. Prob of red?`, ans: `${r}/${total}`, distractors: [`${b}/${total}`, r.toString(), b.toString()], guide: `${r} / (${r}+${b}) = ${r}/${total}.` };
+            }},
+            { type: "ProportionalGraph7", anchor: "A-R.1.1.2", openEnded: false, gen: () => ({
+                q: "Which graph represents a proportional relationship?", ans: "Straight line through (0,0)", distractors: ["Curved line", "Line through (0,5)", "Vertical line"], guide: "Proportionality requires a constant rate starting at the origin."
+            })},
+
+            // ===== 2023 GRADE 7 SET =====
+
+            { type: "RationalMix", anchor: "A-N.1.1", openEnded: false, gen: () => ({
+                q: "-0.31 × 4.2 ÷ 2 = ?", ans: "-0.651", distractors: ["0.651", "-1.3", "1.3"], guide: "Standard multiplication then division."
+            })},
+            { type: "ProbNot7", anchor: "D-P.1.1", openEnded: false, gen: () => {
+                const n = rand(4, 6); const t = 12;
+                return { q: `${n}/${t} are red. Prob NOT red?`, ans: `${t - n}/${t}`, distractors: [`${n}/${t}`, `1/${t}`, "1"], guide: `1 - ${n}/${t} = ${t - n}/${t}.` };
+            }},
+            { type: "TwoStepEq7", anchor: "B-E.2.2.1", openEnded: false, gen: () => {
+                const x = rand(4, 8); const a = rand(2, 4); const b = rand(5, 15);
+                return { q: `${a}x + ${b} = ${a * x + b}. x?`, ans: x.toString(), distractors: [b.toString(), a.toString(), (x + 5).toString()], guide: `Subtract ${b}, then divide by ${a}.` };
+            }},
+            { type: "ImproperRate", anchor: "A-R.1.1.1", openEnded: false, gen: () => ({
+                q: "1/2 mile in 1/4 hour. Speed?", ans: "2 mph", distractors: ["1/8 mph", "4 mph", "0.5 mph"], guide: "1/2 ÷ 1/4 = 2."
+            })},
+            { type: "CircleCirc7", anchor: "C-G.1.1.2", openEnded: false, gen: () => {
+                const r = rand(3, 10);
+                return { q: `Radius ${r}. Circumference in π?`, ans: `${r * 2}π`, distractors: [`${r}π`, `${r * r}π`, `${r * 3}π`], guide: `2πr = ${r * 2}π.` };
+            }},
+            { type: "TaxTotal7", anchor: "A-R.1.1.6", openEnded: false, gen: () => {
+                const p = rand(5, 20) * 10; const t = rand(5, 9);
+                const tax = (p * t / 100);
+                return { q: `$${p} item, ${t}% tax. Total?`, ans: (p + tax).toString(), distractors: [p.toString(), tax.toString(), (p * 2).toString()], guide: `${p} + (${t}% × ${p}) = ${p} + ${tax} = ${p + tax}.` };
+            }},
+            { type: "InequalityFlip7", anchor: "B-E.2.2.2", openEnded: false, gen: () => {
+                const a = -rand(2, 5); const rhs = rand(10, 20); const ans = rhs / a;
+                return { q: `${a}x < ${rhs}. Solve.`, ans: `x > ${ans}`, distractors: [`x < ${ans}`, `x > ${-ans}`, `x < ${-ans}`], guide: "Flip sign when dividing by negative." };
+            }},
+            { type: "BetterSample7", anchor: "D-S.1.1", openEnded: false, gen: () => ({
+                q: "Which sample size is best for a school of 500?", ans: "100 random students", distractors: ["5 random students", "10 friends", "all teachers"], guide: "Larger random samples reduce margin of error."
+            })},
+            { type: "VerticalAngles7", anchor: "C-G.1.1.4", openEnded: false, gen: () => ({
+                q: "Vertical angles are always:", ans: "Equal", distractors: ["90 degrees", "Supplementary", "Adjacent"], guide: "Vertical angles are opposite and congruent."
+            })},
+            { type: "PercentError7", anchor: "A-R.1.1", openEnded: false, gen: () => {
+                const actual = rand(5, 15); const est = actual + rand(1, 5); const pct = ((est - actual) / actual * 100).toFixed(0);
+                return { q: `Est ${est}, Actual ${actual}. % Error?`, ans: `${pct}%`, distractors: [`${est - actual}%`, `${actual}%`, "10%"], guide: `${est - actual} error / ${actual} actual = ${pct}%.` };
+            }},
+            { type: "CylinderCut7", anchor: "C-G.1.1.3", openEnded: false, gen: () => ({
+                q: "Vertical slice of a cylinder?", ans: "Rectangle", distractors: ["Circle", "Triangle", "Oval"], guide: "The side profile is rectangular."
+            })},
+            { type: "ProbSimulate7", anchor: "D-P.1.1.3", openEnded: false, gen: () => ({
+                q: "Flip coin 100 times. Expect heads?", ans: "about 50", distractors: ["exactly 50", "100", "0"], guide: "Prob 0.5 suggests half."
+            })},
+            { type: "ScaleFactorModel", anchor: "C-G.1.1.1", openEnded: false, gen: () => {
+                const scale = rand(3, 8); const real = scale * rand(3, 8);
+                return { q: `Scale 1:${scale}. Real is ${real}. Model?`, ans: (real / scale).toString(), distractors: [(real * scale).toString(), (real - scale).toString(), (real + scale).toString()], guide: `${real} ÷ ${scale} = ${real / scale}.` };
+            }},
+            { type: "DiscountWord7", anchor: "A-R.1.1.6", openEnded: false, gen: () => {
+                const price = rand(4, 10) * 10; const pct = rand(1, 3) * 10; const disc = price * pct / 100;
+                return { q: `$${price}, ${pct}% off. Sale price?`, ans: (price - disc).toString(), distractors: [(price + disc).toString(), disc.toString(), price.toString()], guide: `${price} - ${disc} = ${price - disc}.` };
+            }},
+            { type: "IntegerProd7", anchor: "A-N.1.1", openEnded: false, gen: () => {
+                const a = rand(3, 8); const b = rand(2, 6);
+                return { q: `(-${a}) × (-${b}) = ?`, ans: (a * b).toString(), distractors: [(-(a * b)).toString(), (a + b).toString(), (-(a + b)).toString()], guide: "Neg × Neg = Pos." };
+            }},
+            { type: "UnitPrice7", anchor: "A-R.1.1", openEnded: false, gen: () => {
+                const items = rand(3, 8); const price = items * rand(5, 12);
+                return { q: `${items} shirts for $${price}. 1 shirt?`, ans: (price / items).toString(), distractors: [(price - items).toString(), items.toString(), price.toString()], guide: `${price} ÷ ${items} = ${price / items}.` };
+            }}
+        ],
+        8: [
+            { type: "Sci Note", anchor: "Use powers of 10 to estimate.", openEnded: false, gen: () => {
+                const e1 = rand(6, 10); const e2 = rand(1, 4); const ans = e1 - e2;
+                return { q: `Light travels at 10<sup>${e1}</sup> m/s. Sound at 10<sup>${e2}</sup> m/s. How many powers of 10 faster is light?`, ans: `10<sup>${ans}</sup>`, distractors: [`10<sup>${e1+e2}</sup>`, `10<sup>${Math.abs(ans-2)}</sup>`, `${ans}`], guide: `Divide by subtracting exponents: ${e1} - ${e2} = ${ans}.` };
+            }},
+            { type: "Rational", anchor: "Rational vs Irrational.", openEnded: false, gen: () => {
+                const perfect = [4, 9, 16, 25, 36]; const pIdx = rand(0, perfect.length-1);
+                const nonPerfect = [2, 3, 5, 7, 10, 11]; const nIdx = rand(0, nonPerfect.length-1);
+                return { q: `Which pair contains one rational and one irrational number?`, ans: `√${perfect[pIdx]} and √${nonPerfect[nIdx]}`, distractors: [`√${perfect[0]} and √${perfect[2]}`, `√${nonPerfect[0]} and √${nonPerfect[1]}`, `√1 and √${perfect[1]}`], guide: `√${perfect[pIdx]} = ${Math.sqrt(perfect[pIdx])} (rational). √${nonPerfect[nIdx]} is irrational.` };
+            }},
+            { type: "Exponents", anchor: "Properties of integer exponents.", openEnded: false, gen: () => {
+                const base = rand(2, 7); const a = rand(2, 5); const b = rand(2, 4); const ans = a * b;
+                return { q: `Simplify (${base}<sup>${a}</sup>)<sup>${b}</sup>.`, ans: `${base}<sup>${ans}</sup>`, distractors: [`${base}<sup>${a+b}</sup>`, `${base}<sup>${a}</sup>`, `${base*b}<sup>${a}</sup>`], guide: `Power of a power rule: multiply exponents. ${a} × ${b} = ${ans}.` };
+            }},
+            { type: "Slope Int", anchor: "Interpret y = mx + b.", openEnded: false, gen: () => {
+                const fee = rand(30, 80) / 100; const rate = rand(10, 25) / 100; const days = rand(2, 5); const ans = (fee + rate * days).toFixed(2);
+                return { q: `A library has a $${fee.toFixed(2)} fee and charges $${rate.toFixed(2)} per day overdue. Cost for ${days} days?`, ans: `$${ans}`, distractors: [`$${(fee*days).toFixed(2)}`, `$${(rate*days).toFixed(2)}`, `$${(fee+rate).toFixed(2)}`], guide: `y = ${fee.toFixed(2)} + ${rate.toFixed(2)} × ${days} = $${ans}.` };
+            }},
+            { type: "Functions", anchor: "Construct linear functions.", openEnded: false, gen: () => {
+                const m = rand(15, 45) / 10; const b = rand(100, 400);
+                return { q: `A line has a slope of ${m} and a y-intercept of ${b}. Which equation models this?`, ans: `y = ${m}x + ${b}`, distractors: [`y = ${m}x`, `y = ${b}x`, `y = ${b}x + ${m}`], guide: `Substitute into y = mx + b: y = ${m}x + ${b}.` };
+            }},
+            { type: "Transform", anchor: "Effect of transformations.", openEnded: false, gen: () => {
+                const angle = choose([90, 180, 270]); const scale = rand(2, 4);
+                return { q: `If you rotate a shape ${angle}° and then dilate it by a factor of ${scale}, this is a sequence of:`, ans: "a rotation and a dilation", distractors: ["two translations", "two reflections", "a single translation"], guide: `A rotation changes orientation; a dilation changes size. Together they are a sequence of transformations.` };
+            }},
+            { type: "Pythag", anchor: "Pythagorean Theorem.", openEnded: false, gen: () => {
+                const a = rand(3, 8); const b = rand(a+1, 12); const cSq = a*a + b*b;
+                return { q: `A right triangle has legs of ${a} and ${b}. What is the square of the hypotenuse?`, ans: cSq.toString(), distractors: [(a+b).toString(), (a*b).toString(), (cSq-1).toString()], guide: `a² + b² = c². ${a}² + ${b}² = ${a*a} + ${b*b} = ${cSq}.` };
+            }},
+            { type: "Cylinder", anchor: "Volume of cylinders.", openEnded: false, gen: () => {
+                const h = rand(20, 40); const d = rand(6, 12); const r = d/2; const pieces = rand(4, 8);
+                const vol = Math.PI * r * r * h; const ans = Math.round(vol / pieces);
+                return { q: `A cylinder with height ${h} and diameter ${d} is cut into ${pieces} equal pieces. Approximate volume of one piece?`, ans: ans.toString(), distractors: [Math.round(vol).toString(), Math.round(vol/(pieces*2)).toString(), (r*r*h).toString()], guide: `Total V = π(${r}²)(${h}) ≈ ${Math.round(vol)}. Divide by ${pieces} ≈ ${ans}.` };
+            }},
+            { type: "Slope", anchor: "Find slope of a function.", openEnded: false, gen: () => {
+                const x1 = 0; const y1 = rand(1, 15); const x2 = rand(2, 12); const y2 = y1 + rand(2, 20);
+                const rise = y2 - y1; const run = x2 - x1; const ans = rise / run;
+                return { q: `Find the slope of a line passing through (${x1}, ${y1}) and (${x2}, ${y2}).`, ans: Number.isInteger(ans) ? ans.toString() : ans.toFixed(1), distractors: [rise.toString(), y1.toString(), run.toString()], guide: `(${y2} - ${y1}) / (${x2} - ${x1}) = ${rise} / ${run} = ${Number.isInteger(ans) ? ans : ans.toFixed(1)}.` };
+            }},
+            { type: "Systems", anchor: "Solve systems of equations.", openEnded: false, gen: () => {
+                const x = rand(2, 6); const b1 = rand(1, 5); const m2 = rand(2, 4); const b2 = x + b1 - m2 * x;
+                const y = x + b1;
+                return { q: `Solve: y = x + ${b1} and y = ${m2}x ${b2 >= 0 ? '+ ' + b2 : '- ' + Math.abs(b2)}.`, ans: `(${x}, ${y})`, distractors: [`(${x-1}, ${y})`, `(${x}, ${y-1})`, `(${x+1}, ${y+1})`], guide: `x + ${b1} = ${m2}x ${b2 >= 0 ? '+ ' + b2 : '- ' + Math.abs(b2)}. Solve: x = ${x}. y = ${x} + ${b1} = ${y}.` };
+            }},
+            { type: "Comp Func", anchor: "Compare two functions.", openEnded: false, gen: () => {
+                const r1 = rand(2, 6); const r2 = rand(1, r1 - 1);
+                return { q: `Function A has a rate of change of ${r1}. Function B has a rate of change of ${r2}. Which has a steeper slope?`, ans: "Function A", distractors: ["Function B", "They are equal", "Neither"], guide: `A higher rate of change (${r1} > ${r2}) means a steeper slope.` };
+            }},
+            { type: "Scatter", anchor: "Construct scatter plots.", openEnded: false, gen: () => {
+                return { q: `On a scatter plot, if points trend upward from left to right, it shows:`, ans: "Positive association", distractors: ["Negative association", "No association", "Non-linear"], guide: `As one variable increases, the other increases. This is a positive association.` };
+            }},
+            { type: "Sphere", anchor: "Volume of spheres.", openEnded: false, gen: () => {
+                const r = rand(2, 8); const ans = Math.round(4/3 * Math.pow(r, 3) * 100) / 100;
+                return { q: `A sphere has a radius of ${r}. What is its volume in terms of π?`, ans: `${ans}π`, distractors: [`${r*r}π`, `${r*r*r}π`, `${Math.round(ans/2)}π`], guide: `V = 4/3 πr³ = 4/3 × ${r}³ = 4/3 × ${r*r*r} = ${ans}π.` };
+            }},
+            { type: "Triangle", anchor: "Sum of triangle angles.", openEnded: false, gen: () => {
+                const a = rand(25, 70); const b = rand(25, 130 - a); const ans = 180 - (a + b);
+                return { q: `Two angles of a triangle are ${a}° and ${b}°. What is the third angle?`, ans: `${ans}°`, distractors: [`${a+b}°`, `180°`, `${ans+10}°`], guide: `Triangle angles sum to 180°. 180 - (${a} + ${b}) = 180 - ${a+b} = ${ans}.` };
+            }},
+            { type: "Rep Dec", anchor: "Convert decimal to fraction.", openEnded: false, gen: () => {
+                return { q: `What is the fraction form of 3.1888...?`, ans: "3 17/90", distractors: ["3 17/99", "3 18/90", "3 1/8"], guide: `3.1 + 0.0888... = 31/10 + 8/90 = 279/90 + 8/90 = 287/90 = 3 17/90.` };
+            }},
+            { type: "Roots", anchor: "Approximate irrational numbers.", openEnded: false, gen: () => {
+                const a = rand(3, 7); const b = a + rand(1, 3); const va = rand(5, 10); const vb = va - rand(1, 3);
+                const sq1 = a*a*vb; const sq2 = b*b*va;
+                return { q: `Compare ${a}√${vb} and ${b}√${va}.`, ans: sq1 < sq2 ? `${a}√${vb} < ${b}√${va}` : `${a}√${vb} > ${b}√${va}`, distractors: [sq1 < sq2 ? `${a}√${vb} > ${b}√${va}` : `${a}√${vb} < ${b}√${va}`, "Equal", "Cannot compare"], guide: `Square both: (${a}√${vb})² = ${sq1}. (${b}√${va})² = ${sq2}. ${sq1} ${sq1 < sq2 ? '<' : '>'} ${sq2}.` };
+            }},
+            { type: "CubeRoot", anchor: "A-N.1.1.5", openEnded: false, gen: () => {
+                const bases = [2, 3, 4, 5]; const base = bases[rand(0, bases.length - 1)]; const cube = base * base * base;
+                return { q: `What is the cube root of ${cube}?`, ans: base.toString(), distractors: [(base + 1).toString(), (base - 1).toString(), (cube / 3).toString()], guide: `∛${cube} = ${base} because ${base} × ${base} × ${base} = ${cube}.` };
+            }},
+            { type: "ConeVol", anchor: "C-G.1.1.4", openEnded: false, gen: () => {
+                const r = rand(2, 6); const h = rand(4, 10); const vol = (Math.PI * r * r * h / 3); const ansRound = Math.round(vol * 100) / 100;
+                return { q: `Find the volume of a cone with radius ${r} and height ${h}. Round to the nearest hundredth.`, ans: ansRound.toFixed(2), distractors: [Math.round(Math.PI * r * r * h).toString(), (r * r * h).toString(), Math.round(vol).toString()], guide: `V = 1/3 × π × r² × h = 1/3 × π × ${r * r} × ${h} = ${ansRound.toFixed(2)}.` };
+            }},
+            { type: "ExtAngle", anchor: "C-G.1.1.2", openEnded: false, gen: () => {
+                const a = rand(30, 70); const b = rand(30, 80); const ext = a + b;
+                return { q: `In a triangle, two remote interior angles measure ${a}° and ${b}°. What is the exterior angle?`, ans: `${ext}°`, distractors: [`${180 - ext}°`, `${a}°`, `180°`], guide: `The exterior angle equals the sum of the two remote interior angles: ${a}° + ${b}° = ${ext}°.` };
+            }},
+            { type: "Bivariate", anchor: "D-S.1.1.2", openEnded: false, gen: () => {
+                return { q: `A line of best fit on a scatter plot is used to:`, ans: "Make predictions about data trends", distractors: ["Find the exact values", "Calculate the mean", "Determine the mode"], guide: `A line of best fit approximates the trend in data and is used to predict values within or beyond the data set.` };
+            }},
+            { type: "TwoWay", anchor: "D-S.1.1.3", openEnded: false, gen: () => {
+                const a = rand(10, 30); const b = rand(10, 30); const c = rand(10, 30); const d = rand(10, 30);
+                const total = a + b + c + d;
+                return { q: `A two-way table shows: Group A Yes=${a}, No=${b}; Group B Yes=${c}, No=${d}. What fraction of all people said Yes?`, ans: `${a + c}/${total}`, distractors: [`${a}/${a + b}`, `${a + b}/${total}`, `${c}/${total}`], guide: `Total Yes = ${a} + ${c} = ${a + c}. Total people = ${total}. Fraction = ${a + c}/${total}.` };
+            }},
+            { type: "DistForm", anchor: "C-G.1.1", openEnded: false, gen: () => {
+                const triples = [[3, 4, 5], [5, 12, 13], [6, 8, 10], [8, 15, 17]];
+                const t = triples[rand(0, triples.length - 1)];
+                return { q: `Find the distance from the origin (0, 0) to the point (${t[0]}, ${t[1]}).`, ans: t[2].toString(), distractors: [(t[0] + t[1]).toString(), (t[2] + 1).toString(), Math.abs(t[0] - t[1]).toString()], guide: `Distance = √(${t[0]}² + ${t[1]}²) = √(${t[0] * t[0]} + ${t[1] * t[1]}) = √${t[2] * t[2]} = ${t[2]}.` };
+            }},
+            { type: "InfSols", anchor: "B-E.3.1", openEnded: false, gen: () => {
+                return { q: `How many solutions does the equation 2(x + 3) = 2x + 6 have?`, ans: "Infinitely many", distractors: ["One", "None", "Two"], guide: `Distribute: 2x + 6 = 2x + 6. Both sides are identical, so every value of x is a solution.` };
+            }},
+            { type: "Translation", anchor: "C-G.1.1.1", openEnded: false, gen: () => {
+                const x = rand(1, 7); const y = rand(1, 7); const dx = rand(1, 5); const dy = rand(1, 5);
+                return { q: `Translate the point (${x}, ${y}) right ${dx} units and up ${dy} units. What are the new coordinates?`, ans: `(${x + dx}, ${y + dy})`, distractors: [`(${x - dx}, ${y + dy})`, `(${x + dx}, ${y - dy})`, `(${x + dy}, ${y + dx})`], guide: `Right ${dx}: x becomes ${x} + ${dx} = ${x + dx}. Up ${dy}: y becomes ${y} + ${dy} = ${y + dy}. New point: (${x + dx}, ${y + dy}).` };
+            }},
+            { type: "NegSlope", anchor: "B-E.2", openEnded: false, gen: () => {
+                return { q: `A line on a graph goes downward from left to right. Its slope is:`, ans: "Negative", distractors: ["Positive", "Zero", "Undefined"], guide: `A line that falls from left to right has a negative slope because as x increases, y decreases.` };
+            }},
+            { type: "PerfectSquare", anchor: "A-N.1.1", openEnded: false, gen: () => {
+                const n = rand(2, 15); const sq = n * n;
+                return { q: `What is √${sq}?`, ans: n.toString(), distractors: [(n + 1).toString(), (n - 1).toString(), (sq / 2).toString()], guide: `√${sq} = ${n} because ${n} × ${n} = ${sq}.` };
+            }},
+
+            // ===== 2024 GRADE 8 SET =====
+
+            { type: "SciNoteFaster", anchor: "A-N.1.1.1", openEnded: false, gen: () => {
+                const e1 = rand(6, 10); const e2 = rand(1, 4);
+                return { q: `10^${e1} vs 10^${e2}. How many times faster?`, ans: `10^${e1 - e2}`, distractors: [`10^${e1 + e2}`, `10^${Math.floor(e1 / e2)}`, (e1 - e2).toString()], guide: `Subtract exponents: ${e1} - ${e2} = ${e1 - e2}.` };
+            }},
+            { type: "RationalIrrational8", anchor: "A-N.1.1.1", openEnded: false, gen: () => {
+                const perf = [4, 9, 16, 25][rand(0, 3)]; const nonPerf = [5, 7, 11, 13][rand(0, 3)];
+                return { q: `Which pair has one rational and one irrational?`, ans: `√${perf} and √${nonPerf}`, distractors: [`√${perf} and √${perf}`, `√${nonPerf} and √${nonPerf + 2}`, `${Math.sqrt(perf)} and ${Math.sqrt(perf) + 1}`], guide: `√${perf} = ${Math.sqrt(perf)} (rational); √${nonPerf} is irrational.` };
+            }},
+            { type: "RepeatingDec", anchor: "A-N.1.1.2", openEnded: false, gen: () => ({
+                q: "3.188... as a fraction?", ans: "3 17/90", distractors: ["3 17/99", "3 1/8", "3 18/90"], guide: "3.1 + 8/90 = 3 17/90."
+            })},
+            { type: "CompareRoots", anchor: "A-N.1.1.4", openEnded: false, gen: () => ({
+                q: "Compare 5√7 and 7√5.", ans: "5√7 < 7√5", distractors: ["5√7 > 7√5", "Equal", "None"], guide: "√175 < √245."
+            })},
+            { type: "ExponentPower", anchor: "B-E.1.1.1", openEnded: false, gen: () => {
+                const a = rand(2, 4); const b = rand(3, 5); const base = rand(2, 5);
+                return { q: `(${base}^${a})^${b} = ?`, ans: `${base}^${a * b}`, distractors: [`${base}^${a + b}`, `${base}^${a}`, (a * b).toString()], guide: `Multiply the exponents: ${a} × ${b} = ${a * b}.` };
+            }},
+            { type: "SlopeFee", anchor: "B-E.3.1.3", openEnded: false, gen: () => {
+                const fee = rand(40, 80) / 100; const daily = rand(10, 25) / 100; const days = rand(2, 5);
+                const ans = (fee + daily * days).toFixed(2);
+                return { q: `$${fee.toFixed(2)} fee + $${daily.toFixed(2)}/day. Cost for ${days} days?`, ans: `$${ans}`, distractors: [`$${(fee + daily).toFixed(2)}`, `$${(daily * days).toFixed(2)}`, `$${(fee * days).toFixed(2)}`], guide: `${fee.toFixed(2)} + ${days}(${daily.toFixed(2)}) = $${ans}.` };
+            }},
+            { type: "LineEqModel", anchor: "B-F.1.1.1", openEnded: false, gen: () => {
+                const m = rand(2, 5); const b = rand(100, 400);
+                return { q: `Slope ${m}, Y-int ${b}. Equation?`, ans: `y = ${m}x + ${b}`, distractors: [`y = ${m}x`, `y = ${b}x`, `y = ${b}x + ${m}`], guide: `Use y = mx + b.` };
+            }},
+            { type: "Pythagorean8", anchor: "C-G.1.1.1", openEnded: false, gen: () => {
+                const a = rand(3, 6); const b = rand(4, 8);
+                return { q: `Legs ${a} and ${b}. Hypotenuse squared?`, ans: (a * a + b * b).toString(), distractors: [(a + b).toString(), (a * b).toString(), "100"], guide: `a² + b² = ${a * a} + ${b * b} = ${a * a + b * b}.` };
+            }},
+            { type: "CylinderCut8", anchor: "C-G.1.1.4", openEnded: false, gen: () => {
+                const r = rand(3, 6); const h = rand(24, 48); const cuts = rand(4, 8);
+                const vol = Math.round(Math.PI * r * r * h / cuts);
+                return { q: `Diam ${r * 2}, Height ${h}. Cut into ${cuts}. Vol of 1?`, ans: vol.toString(), distractors: [Math.round(vol / 2).toString(), Math.round(vol * cuts).toString(), (r * r).toString()], guide: `π(${r}²)${h} / ${cuts} ≈ ${vol}.` };
+            }},
+            { type: "SlopePoints8", anchor: "B-E.2.1.1", openEnded: false, gen: () => {
+                const y1 = rand(2, 8); const rise = rand(2, 6); const y2 = y1 + rise;
+                return { q: `Slope from (0,${y1}) to (2,${y2})?`, ans: (rise / 2).toString(), distractors: [rise.toString(), "0.5", y1.toString()], guide: `(${y2}-${y1})/(2-0) = ${rise}/2 = ${rise / 2}.` };
+            }},
+            { type: "EquationSolution8", anchor: "B-E.3.1.5", openEnded: false, gen: () => {
+                const x = rand(2, 6); const b1 = rand(1, 5); const y = x + b1;
+                return { q: `Solve: y=x+${b1}, y=2x-${x - b1}.`, ans: `(${x}, ${y})`, distractors: [`(${y}, ${x})`, `(${b1}, ${x})`, "(0,0)"], guide: `x+${b1} = 2x-${x - b1} → x=${x}, y=${y}.` };
+            }},
+            { type: "RateComparison8", anchor: "B-F.1.1.1", openEnded: false, gen: () => {
+                const m1 = rand(3, 7); const m2 = rand(1, m1 - 1);
+                return { q: `Which is steeper: y=${m1}x or y=${m2}x?`, ans: `y=${m1}x`, distractors: [`y=${m2}x`, "Equal", "Neither"], guide: "Higher absolute slope = steeper." };
+            }},
+            { type: "ScatterTrend8", anchor: "D-S.1.1.1", openEnded: false, gen: () => ({
+                q: "Points moving up/right indicates:", ans: "Positive association", distractors: ["Negative", "No association", "Curved"], guide: "Same direction move = positive."
+            })},
+            { type: "SphereVolume8", anchor: "C-G.1.1.4", openEnded: false, gen: () => {
+                const r = rand(2, 6); const vol = Math.round(4 / 3 * r * r * r);
+                return { q: `Radius ${r} sphere volume in π?`, ans: `${vol}π`, distractors: [`${r * r}π`, `${r * r * r}π`, `${4 * r}π`], guide: `4/3 × π × r³ = 4/3 × ${r * r * r} = ${vol}π.` };
+            }},
+            { type: "TriangleMissing8", anchor: "C-G.1.1.1", openEnded: false, gen: () => {
+                const a = rand(30, 60); const b = rand(40, 70);
+                return { q: `Angles ${a}°, ${b}°. 3rd angle?`, ans: (180 - a - b).toString(), distractors: [(a + b).toString(), "180", (90 - a).toString()], guide: `Sum is 180. 180 - ${a} - ${b} = ${180 - a - b}.` };
+            }},
+            { type: "RationalID8", anchor: "A-N.1.1.1", openEnded: false, gen: () => {
+                const perf = [4, 9, 16, 25, 36][rand(0, 4)];
+                return { q: `Which is rational?`, ans: `√${perf}`, distractors: ["√2", "π", "√10"], guide: `√${perf} = ${Math.sqrt(perf)}.` };
+            }},
+
+            // ===== 2023 GRADE 8 SET =====
+
+            { type: "CubeRootID8", anchor: "A-N.1.1.5", openEnded: false, gen: () => {
+                const n = rand(2, 5);
+                return { q: `∛${n * n * n} = ?`, ans: n.toString(), distractors: [(n * n).toString(), "1", (n * n * n).toString()], guide: `${n}×${n}×${n} = ${n * n * n}.` };
+            }},
+            { type: "SciNoteMult8", anchor: "B-E.1.1.2", openEnded: false, gen: () => {
+                const a = rand(2, 5); const b = rand(2, 5); const e1 = rand(2, 4); const e2 = rand(2, 4);
+                return { q: `(${a}×10^${e1}) × (${b}×10^${e2}) = ?`, ans: `${a * b}×10^${e1 + e2}`, distractors: [`${a * b}×10^${e1 * e2}`, `${a + b}×10^${e1 + e2}`, `${a * b}×10^${e1}`], guide: `Mult numbers: ${a}×${b}=${a * b}. Add exponents: ${e1}+${e2}=${e1 + e2}.` };
+            }},
+            { type: "Linearity8", anchor: "B-F.1.1", openEnded: false, gen: () => {
+                const m = rand(2, 7); const b = rand(1, 10);
+                return { q: `Which is a linear function?`, ans: `y = ${m}x + ${b}`, distractors: ["y = x²", "y = 1/x", "y = |x|"], guide: "Linear functions have x to the first power." };
+            }},
+            { type: "SlopeTriangles8", anchor: "B-E.2.1", openEnded: false, gen: () => ({
+                q: "Slope triangles on the same line are always:", ans: "Similar", distractors: ["Congruent", "Equal area", "Isosceles"], guide: "They have proportional sides/angles."
+            })},
+            { type: "ConeVolPi8", anchor: "C-G.1.1.4", openEnded: false, gen: () => {
+                const r = rand(2, 6); const h = rand(3, 8); const vol = Math.round(r * r * h / 3);
+                return { q: `R=${r}, H=${h} cone volume in π?`, ans: `${vol}π`, distractors: [`${r * r * h}π`, `${r * h}π`, `${vol * 3}π`], guide: `1/3 × π × r² × h = 1/3 × ${r * r} × ${h} = ${vol}π.` };
+            }},
+            { type: "ExteriorAngleSum8", anchor: "C-G.1.1.2", openEnded: false, gen: () => {
+                const a = rand(30, 60); const b = rand(40, 70);
+                return { q: `Exterior angle of remote ${a}°, ${b}°?`, ans: (a + b).toString(), distractors: [(a - b).toString(), "180", (90 - a).toString()], guide: `Sum of remote interiors: ${a} + ${b} = ${a + b}.` };
+            }},
+            { type: "LineBestFit8", anchor: "D-S.1.1.2", openEnded: false, gen: () => ({
+                q: "Best fit lines are used for:", ans: "Predictions", distractors: ["Definitions", "Exact results", "Ranges"], guide: "Used to estimate values."
+            })},
+            { type: "ProbNo8", anchor: "D-S.1.1.3", openEnded: false, gen: () => {
+                const total = rand(15, 30); const yes = rand(3, 8); const no = total - yes;
+                return { q: `${total} people, ${yes} say yes. Prob NO?`, ans: (no / total).toFixed(2), distractors: [(yes / total).toFixed(2), no.toString(), yes.toString()], guide: `${no}/${total} = ${(no / total).toFixed(2)}.` };
+            }},
+            { type: "OriginDist8", anchor: "C-G.1.1", openEnded: false, gen: () => {
+                const pairs = [[3, 4, 5], [5, 12, 13], [6, 8, 10], [8, 15, 17]]; const p = pairs[rand(0, 3)];
+                return { q: `Distance from (0,0) to (${p[0]},${p[1]})?`, ans: p[2].toString(), distractors: [(p[0] + p[1]).toString(), (p[0] * p[1]).toString(), (p[2] + 1).toString()], guide: `√(${p[0]}²+${p[1]}²) = √${p[0] * p[0] + p[1] * p[1]} = ${p[2]}.` };
+            }},
+            { type: "EquationTypes8", anchor: "B-E.3.1", openEnded: false, gen: () => {
+                const a = rand(2, 6);
+                return { q: `${a}x = ${a}x has how many solutions?`, ans: "Infinite", distractors: ["0", "1", "2"], guide: "Left side always equals right side." };
+            }},
+            { type: "RadicalBounds8", anchor: "A-N.1.1.4", openEnded: false, gen: () => {
+                const lo = rand(2, 8); const inner = lo * lo + rand(1, lo * 2);
+                return { q: `√${inner} is between:`, ans: `${lo} and ${lo + 1}`, distractors: [`${lo - 1} and ${lo}`, `${lo + 1} and ${lo + 2}`, `${inner} and ${inner + 1}`], guide: `${lo}²=${lo * lo}, ${lo + 1}²=${(lo + 1) * (lo + 1)}. ${inner} is between.` };
+            }},
+            { type: "SetFunction8", anchor: "B-F.1.1.1", openEnded: false, gen: () => ({
+                q: "A set where each X has one Y is a:", ans: "Function", distractors: ["Relation", "Slope", "Scalar"], guide: "Function definition."
+            })},
+            { type: "ShiftPoint8", anchor: "C-G.1.1.1", openEnded: false, gen: () => {
+                const x = rand(1, 7); const y = rand(1, 7); const dy = rand(2, 5);
+                return { q: `Point (${x},${y}) shifted up ${dy}?`, ans: `(${x}, ${y + dy})`, distractors: [`(${x + dy},${y})`, `(${x},${y - dy})`, `(${x - dy},${y})`], guide: `Add ${dy} to Y: (${x}, ${y + dy}).` };
+            }},
+            { type: "DilationScale8", anchor: "C-G.1.1", openEnded: false, gen: () => {
+                const x = rand(1, 5); const y = rand(1, 5); const s = rand(2, 4);
+                return { q: `Dilation scale ${s} on (${x},${y})?`, ans: `(${x * s}, ${y * s})`, distractors: [`(${x + s},${y + s})`, `(${x},${y * s})`, `(${x * s},${y})`], guide: `Multiply both: (${x * s}, ${y * s}).` };
+            }},
+            { type: "SlopeDecreasing8", anchor: "B-E.2", openEnded: false, gen: () => ({
+                q: "A line that falls from left to right has a:", ans: "Negative slope", distractors: ["Positive slope", "Zero slope", "Undefined slope"], guide: "Falls = Negative."
+            })},
+            { type: "PerfectRoot8", anchor: "A-N.1.1", openEnded: false, gen: () => {
+                const n = rand(2, 12); const sq = n * n;
+                return { q: `√${sq} = ?`, ans: n.toString(), distractors: [(n + 1).toString(), (sq / 2).toString(), "1"], guide: `${n} × ${n} = ${sq}.` };
+            }}
+        ]
+    },
+    keystone: {
+        algebra1: [
+
+            // ===== MODULE 1: OPERATIONS & LINEAR EQUATIONS (16) =====
+
+            { type: "RealNumberComparison", anchor: "A1.1.1.1.1", openEnded: false, gen: () => {
+                const v = rand(3, 5); const inner = v * v + rand(1, 4);
+                return {
+                    q: `Which irrational number is between ${v} and ${v + 1}?`,
+                    ans: `√${inner}`,
+                    distractors: [`√${v}`, `√${(v + 1) * (v + 1)}`, `${v}.5`],
+                    guide: `${v}² = ${v * v} and ${v + 1}² = ${(v + 1) * (v + 1)}. Since ${inner} is between ${v * v} and ${(v + 1) * (v + 1)}, its square root is between ${v} and ${v + 1}.`
+                };
+            }},
+
+            { type: "SimplifyRadicals", anchor: "A1.1.1.1.2", openEnded: false, gen: () => {
+                const coeff = rand(3, 6); const prime = [2, 3, 5][rand(0, 2)];
+                const inside = (coeff * coeff) * prime;
+                return {
+                    q: `Simplify the expression √${inside} completely.`,
+                    ans: `${coeff}√${prime}`,
+                    distractors: [`${prime}√${coeff}`, `${coeff * prime}√2`, `√${inside}`],
+                    guide: `Factor out the perfect square: √(${coeff * coeff} × ${prime}) = √${coeff * coeff} × √${prime} = ${coeff}√${prime}.`
+                };
+            }},
+
+            { type: "EstimationWordProblem", anchor: "A1.1.1.4.1", openEnded: false, gen: () => {
+                const p1 = (rand(195, 215)) / 10; const p2 = (rand(38, 62)) / 10;
+                const ans = Math.round(p1) * Math.round(p2);
+                return {
+                    q: `A technician charges $${p1.toFixed(2)} per hour. If they work ${p2.toFixed(1)} hours, what is the best estimate for the total cost?`,
+                    ans: `$${ans}`,
+                    distractors: [`$${ans - 20}`, `$${ans + 20}`, `$${Math.round(p1 * p2) + 50}`],
+                    guide: `Round ${p1.toFixed(2)} to ${Math.round(p1)} and ${p2.toFixed(1)} to ${Math.round(p2)}. Multiply: ${Math.round(p1)} × ${Math.round(p2)} = ${ans}.`
+                };
+            }},
+
+            { type: "PolynomialMultiplication", anchor: "A1.1.1.5.1", openEnded: false, gen: () => {
+                const a = rand(2, 4); const b = rand(2, 5);
+                const mid = b - a * b;
+                const midStr = mid >= 0 ? `+ ${mid}` : `- ${Math.abs(mid)}`;
+                return {
+                    q: `Multiply and simplify: (${a}x + ${b})(x - ${b})`,
+                    ans: `${a}x² ${midStr}x - ${b * b}`,
+                    distractors: [`${a}x² - ${b * b}`, `${a}x² + ${b + (a * b)}x + ${b * b}`, `${a}x - ${b * b}`],
+                    guide: `Use FOIL: (${a}x)(x) + (${a}x)(-${b}) + (${b})(x) + (${b})(-${b}) = ${a}x² - ${a * b}x + ${b}x - ${b * b} = ${a}x² ${midStr}x - ${b * b}.`
+                };
+            }},
+
+            { type: "FactoringTrinomials", anchor: "A1.1.1.5.2", openEnded: false, gen: () => {
+                const r1 = rand(2, 5); const r2 = rand(6, 9);
+                const b = r1 + r2; const c = r1 * r2;
+                return {
+                    q: `Factor completely: x² - ${b}x + ${c}`,
+                    ans: `(x - ${r1})(x - ${r2})`,
+                    distractors: [`(x + ${r1})(x + ${r2})`, `(x - ${r1})(x + ${r2})`, `x(x - ${b})`],
+                    guide: `Find two numbers that multiply to ${c} and add to -${b}. Those are -${r1} and -${r2}.`
+                };
+            }},
+
+            { type: "RationalExpressions", anchor: "A1.1.1.5.3", openEnded: false, gen: () => {
+                const a = rand(2, 5);
+                return {
+                    q: `Simplify the expression: (${a}x² + ${a}x) / ${a}x`,
+                    ans: `x + 1`,
+                    distractors: [`${a}x`, `x² + 1`, `x`],
+                    guide: `Factor the numerator: ${a}x(x + 1). Divide by ${a}x to leave x + 1.`
+                };
+            }},
+
+            { type: "LiteralEquations", anchor: "A1.1.2.1.1", openEnded: false, gen: () => ({
+                q: `Solve for h in the volume formula: V = πr²h`,
+                ans: `h = V / (πr²)`,
+                distractors: [`h = Vπr²`, `h = πr² / V`, `h = V - πr²`],
+                guide: `To isolate h, divide both sides of the equation by (πr²).`
+            })},
+
+            { type: "MultiStepLinear", anchor: "A1.1.2.1.2", openEnded: false, gen: () => {
+                const x = rand(3, 7); const a = rand(2, 4); const halfB = rand(5, 10);
+                const b = halfB * 2;
+                const res = a * x + b;
+                return {
+                    q: `Solve for x: ${a}(x + ${halfB}) = ${res + (a * halfB)}`,
+                    ans: x.toString(),
+                    distractors: [(x + 2).toString(), (x - 2).toString(), (x + 10).toString()],
+                    guide: `Distribute first: ${a}x + ${a * halfB}. Subtract ${a * halfB} from both sides, then divide by ${a}.`
+                };
+            }},
+
+            { type: "SystemsBySubstitution", anchor: "A1.1.2.2.1", openEnded: false, gen: () => {
+                const x = rand(1, 4); const y = rand(5, 9);
+                const a1 = rand(2, 3); const c1 = a1 * x + y;
+                return {
+                    q: `Solve the system: ${a1}x + y = ${c1} and y = x + ${y - x}`,
+                    ans: `(${x}, ${y})`,
+                    distractors: [`(${y}, ${x})`, `(0, ${c1})`, `No Solution`],
+                    guide: `Substitute y = x + ${y - x} into the first equation: ${a1}x + (x + ${y - x}) = ${c1}. Combine: ${a1 + 1}x + ${y - x} = ${c1}. Solve for x = ${x}, then y = ${y}.`
+                };
+            }},
+
+            { type: "SystemsWordProblem", anchor: "A1.1.2.2.2", openEnded: false, gen: () => {
+                const pens = rand(2, 5); const notebooks = 10 - pens;
+                const penPrice = rand(2, 4); const notebookPrice = rand(5, 8);
+                const total = penPrice * pens + notebookPrice * notebooks;
+                return {
+                    q: `A store sells pens for $${penPrice} and notebooks for $${notebookPrice}. You buy 10 items total for $${total}. How many notebooks?`,
+                    ans: notebooks.toString(),
+                    distractors: [pens.toString(), "10", (notebooks + 1).toString()],
+                    guide: `Set up: x + y = 10 and ${penPrice}x + ${notebookPrice}y = ${total}. Solve: x = ${pens} pens, y = ${notebooks} notebooks.`
+                };
+            }},
+
+            { type: "AbsoluteValueEq", anchor: "A1.1.3.1.1", openEnded: false, gen: () => {
+                const v = rand(10, 20);
+                return {
+                    q: `Solve: |x - 5| = ${v}`,
+                    ans: `${v + 5} and ${5 - v}`,
+                    distractors: [`${v + 5}`, `${v}`, `0`],
+                    guide: `Split into x - 5 = ${v} and x - 5 = -${v}. Solve both: x = ${v + 5} and x = ${5 - v}.`
+                };
+            }},
+
+            { type: "InequalityWordProblem", anchor: "A1.1.3.1.2", openEnded: false, gen: () => {
+                const limit = rand(200, 400); const fee = rand(20, 50);
+                return {
+                    q: `You have at most $${limit}. You spend $${fee} on a ticket and $x on food. Which inequality fits?`,
+                    ans: `x + ${fee} ≤ ${limit}`,
+                    distractors: [`x + ${fee} ≥ ${limit}`, `x - ${fee} ≤ ${limit}`, `${fee}x ≤ ${limit}`],
+                    guide: `"At most" means less than or equal to (≤). Sum of costs must be ≤ ${limit}.`
+                };
+            }},
+
+            { type: "CompoundInequality", anchor: "A1.1.3.1.3", openEnded: false, gen: () => {
+                const a = rand(2, 4); const lo = -1 * rand(2, 6) * a; const hi = rand(3, 8) * a;
+                return {
+                    q: `Solve: ${lo} < ${a}x < ${hi}`,
+                    ans: `${lo / a} < x < ${hi / a}`,
+                    distractors: [`x < ${hi / a}`, `${lo} < x < ${hi}`, `${hi / a} < x < ${lo / a}`],
+                    guide: `Divide all three parts by ${a} to isolate x: ${lo}/${a} < x < ${hi}/${a}.`
+                };
+            }},
+
+            { type: "SystemOfInequalities", anchor: "A1.1.3.2.1", openEnded: false, gen: () => ({
+                q: `In a system of inequalities, if the point (0,0) makes both inequalities true, the solution region is:`,
+                ans: "The overlapping shaded area containing the origin",
+                distractors: ["Only the first line", "The unshaded area", "The y-axis"],
+                guide: `The solution to a system of inequalities is where the individual solutions overlap.`
+            })},
+
+            { type: "SignFlipInequality", anchor: "A1.1.3.1.1", openEnded: false, gen: () => {
+                const posVal = [2, 4, 5, 10][rand(0, 3)]; const val = -1 * posVal;
+                const result = 20 / val;
+                return {
+                    q: `When solving ${val}x < 20, the solution is:`,
+                    ans: `x > ${result}`,
+                    distractors: [`x < ${result}`, `x = ${result}`, `x > ${20 + val}`],
+                    guide: `Divide both sides by ${val}. Since you are dividing by a negative number, flip the inequality sign: x > ${result}.`
+                };
+            }},
+
+            { type: "GCFWithVariables", anchor: "A1.1.1.2.1", openEnded: false, gen: () => ({
+                q: `Find the GCF of 4x³y and 6x²y²`,
+                ans: "2x²y",
+                distractors: ["12x³y²", "2xy", "x²y"],
+                guide: `GCF of 4 and 6 is 2. Take the lowest exponent for each variable: x² and y. GCF = 2x²y.`
+            })},
+
+            // ===== MODULE 2: FUNCTIONS & DATA (16) =====
+
+            { type: "FunctionIDPairs", anchor: "A1.2.1.1.1", openEnded: false, gen: () => ({
+                q: `Which set of ordered pairs is a function?`,
+                ans: "{(1,2), (2,2), (3,2)}",
+                distractors: ["{(1,2), (1,3), (1,4)}", "{(2,1), (2,5), (3,2)}", "{(0,1), (0,0)}"],
+                guide: `A function cannot have repeating X values with different Y values. Repeating Y values is okay.`
+            })},
+
+            { type: "FunctionIDGraph", anchor: "A1.2.1.1.1", openEnded: false, gen: () => ({
+                q: `To determine if a graph is a function, we use the:`,
+                ans: "Vertical Line Test",
+                distractors: ["Horizontal Line Test", "Origin Test", "Slope Test"],
+                guide: `If a vertical line touches the graph in more than one spot, it is not a function.`
+            })},
+
+            { type: "DomainEvaluation", anchor: "A1.2.1.1.3", openEnded: false, gen: () => {
+                const s = rand(2, 5);
+                return {
+                    q: `What is the domain of {(0,${s}), (5,${s + 1}), (10,${s + 2})}?`,
+                    ans: "{0, 5, 10}",
+                    distractors: [`{${s}, ${s + 1}, ${s + 2}}`, "{0, 10}", "All real numbers"],
+                    guide: `The domain is the set of all X-values (the first number in each pair).`
+                };
+            }},
+
+            { type: "RangeEvaluation", anchor: "A1.2.1.1.3", openEnded: false, gen: () => {
+                const s = rand(1, 3);
+                return {
+                    q: `What is the range of {(1,${s}), (2,${s}), (3,${s})}?`,
+                    ans: `{${s}}`,
+                    distractors: ["{1, 2, 3}", "{0}", "All real numbers"],
+                    guide: `The range is the set of all Y-values. Here, the only Y-value is ${s}.`
+                };
+            }},
+
+            { type: "FunctionNotation", anchor: "A1.2.1.2.1", openEnded: false, gen: () => {
+                const m = rand(2, 5); const b = rand(1, 5); const x = rand(2, 4);
+                return {
+                    q: `If f(x) = ${m}x - ${b}, find f(${x}).`,
+                    ans: (m * x - b).toString(),
+                    distractors: [(m * x).toString(), (x - b).toString(), (m + x + b).toString()],
+                    guide: `Substitute ${x} for x: f(${x}) = ${m}(${x}) - ${b} = ${m * x} - ${b} = ${m * x - b}.`
+                };
+            }},
+
+            { type: "SlopeFromPoints", anchor: "A1.2.2.1.1", openEnded: false, gen: () => {
+                const rise = rand(2, 8) * 2; const y1 = rand(2, 5); const y2 = y1 + rise;
+                const slope = rise / 2;
+                return {
+                    q: `Find the slope between (0, ${y1}) and (2, ${y2}).`,
+                    ans: slope.toString(),
+                    distractors: ["2", rise.toString(), "0.5"],
+                    guide: `Slope = (y2 - y1) / (x2 - x1) = (${y2} - ${y1}) / (2 - 0) = ${rise} / 2 = ${slope}.`
+                };
+            }},
+
+            { type: "SlopeWordProblem", anchor: "A1.2.2.1.1", openEnded: false, gen: () => {
+                const rate = rand(15, 30);
+                return {
+                    q: `A plumber charges a flat fee plus $${rate} per hour. The $${rate} represents the:`,
+                    ans: "Slope",
+                    distractors: ["Y-intercept", "X-intercept", "Domain"],
+                    guide: `The "per hour" rate is the rate of change, which is the slope in a linear equation.`
+                };
+            }},
+
+            { type: "YInterceptLogic", anchor: "A1.2.2.1.3", openEnded: false, gen: () => {
+                const fee = rand(40, 60);
+                return {
+                    q: `A gym charges a $${fee} sign-up fee plus monthly dues. The $${fee} represents the:`,
+                    ans: "Y-intercept",
+                    distractors: ["Slope", "Range", "X-intercept"],
+                    guide: `The flat fee is the starting value (when time = 0), which is the y-intercept.`
+                };
+            }},
+
+            { type: "ParallelLines", anchor: "A1.2.2.1", openEnded: false, gen: () => {
+                const m = rand(2, 6);
+                return {
+                    q: `What is the slope of a line parallel to y = ${m}x + 10?`,
+                    ans: m.toString(),
+                    distractors: [`-${m}`, `1/${m}`, "10"],
+                    guide: `Parallel lines always have the exact same slope. The slope of y = ${m}x + 10 is ${m}.`
+                };
+            }},
+
+            { type: "PerpendicularLines", anchor: "A1.2.2.1", openEnded: false, gen: () => {
+                const m = rand(2, 5);
+                return {
+                    q: `What is the slope of a line perpendicular to y = ${m}x - 4?`,
+                    ans: `-1/${m}`,
+                    distractors: [m.toString(), `-${m}`, `1/${m}`],
+                    guide: `Perpendicular slopes are negative reciprocals: flip the fraction and change the sign. The negative reciprocal of ${m} is -1/${m}.`
+                };
+            }},
+
+            { type: "BoxPlotRange", anchor: "A1.2.3.1.1", openEnded: false, gen: () => {
+                const min = rand(50, 60); const max = rand(90, 100);
+                return {
+                    q: `In a box plot, the whiskers end at ${min} and ${max}. What is the range?`,
+                    ans: (max - min).toString(),
+                    distractors: [max.toString(), min.toString(), "50"],
+                    guide: `Range = Maximum - Minimum = ${max} - ${min} = ${max - min}.`
+                };
+            }},
+
+            { type: "InterquartileRange", anchor: "A1.2.3.1.1", openEnded: false, gen: () => {
+                const q1 = rand(60, 75); const q3 = q1 + rand(15, 25);
+                const iqr = q3 - q1;
+                return {
+                    q: `If Q1 is ${q1} and Q3 is ${q3}, what is the Interquartile Range (IQR)?`,
+                    ans: iqr.toString(),
+                    distractors: [(q1 + q3).toString(), q1.toString(), q3.toString()],
+                    guide: `IQR = Q3 - Q1 = ${q3} - ${q1} = ${iqr}.`
+                };
+            }},
+
+            { type: "StemAndLeaf", anchor: "A1.2.3.1.1", openEnded: false, gen: () => {
+                const stem = rand(3, 7); const leaf = rand(1, 9);
+                const value = stem * 10 + leaf;
+                return {
+                    q: `In a stem-and-leaf plot, what does ${stem} | ${leaf} represent if the key is ${stem} | ${leaf} = ${value}?`,
+                    ans: value.toString(),
+                    distractors: [`${stem}.${leaf}`, (stem + leaf).toString(), (stem * leaf).toString()],
+                    guide: `The stem is the tens place and the leaf is the ones place: ${stem} | ${leaf} = ${value}.`
+                };
+            }},
+
+            { type: "LineOfBestFit", anchor: "A1.2.3.2.1", openEnded: false, gen: () => ({
+                q: `Scatter plot points go from bottom-left to top-right. This relationship is:`,
+                ans: "Positive Correlation",
+                distractors: ["Negative Correlation", "No Correlation", "Constant Correlation"],
+                guide: `When both variables increase together, the correlation is positive.`
+            })},
+
+            { type: "CompoundProbability", anchor: "A1.2.3.3.1", openEnded: false, gen: () => {
+                const sides = rand(4, 8);
+                return {
+                    q: `Probability of rolling a 1 on a ${sides}-sided die AND flipping Heads?`,
+                    ans: `1/${sides * 2}`,
+                    distractors: [`1/${sides}`, "1/2", `1/${sides + 2}`],
+                    guide: `Multiply individual probabilities: (1/${sides}) × (1/2) = 1/${sides * 2}.`
+                };
+            }},
+
+            { type: "LiteralEquationInterest", anchor: "A1.1.2.1.1", openEnded: false, gen: () => ({
+                q: `Solve the interest formula I = Prt for r.`,
+                ans: "r = I / (Pt)",
+                distractors: ["r = IPt", "r = P / (It)", "r = I - Pt"],
+                guide: `Divide both sides by (Pt) to isolate r: r = I / (Pt).`
+            })},
+
+            // ===== ORIGINAL CORE TEMPLATES =====
+
+            { type: "RealNumberClassify", anchor: "A1.1.1.1.1", openEnded: false, gen: () => {
+                const n = Math.sqrt(2);
+                return {
+                    q: `Is √2 rational or irrational?`,
+                    ans: "irrational",
+                    distractors: ["rational", "integer", "whole"],
+                    guide: `Square roots of non-perfect squares are irrational.`
+                };
+            }},
+
+            { type: "RadicalSimplify", anchor: "A1.1.1.1.2", openEnded: false, gen: () => {
+                const b = rand(2,6);
+                return {
+                    q: `Simplify √${b*b*5}`,
+                    ans: `${b}√5`,
+                    distractors: [`√${b*b*5}`, `${b*2}√5`, `${b}√${b}`],
+                    guide: `Factor perfect square.`
+                };
+            }},
+
+            { type: "ExponentRules", anchor: "A1.1.1.2.1", openEnded: false, gen: () => {
+                const a = rand(2,5);
+                return {
+                    q: `Simplify x^${a} · x^3`,
+                    ans: `x^${a+3}`,
+                    distractors: [`x^${a*3}`, `x^${a-3}`, `2x^${a}`],
+                    guide: `Add exponents.`
+                };
+            }},
+
+            { type: "PolynomialAdd", anchor: "A1.1.1.3.1", openEnded: false, gen: () => {
+                const a = rand(2,10), b = rand(2,10);
+                return {
+                    q: `Simplify (${a}x + 4) + (${b}x + 3)`,
+                    ans: `${a+b}x + 7`,
+                    distractors: [`${a*b}x + 7`, `${a+b}x + 12`, `${a+b}x`],
+                    guide: `Combine like terms.`
+                };
+            }},
+
+            { type: "PolynomialMultiply", anchor: "A1.1.1.4.1", openEnded: false, gen: () => {
+                const a = rand(2,5);
+                return {
+                    q: `Expand x(x + ${a})`,
+                    ans: `x² + ${a}x`,
+                    distractors: [`x² + ${a}`, `${a}x²`, `x + ${a}`],
+                    guide: `Distribute x.`
+                };
+            }},
+
+            { type: "FactorDifferenceSquares", anchor: "A1.1.1.5.1", openEnded: false, gen: () => {
+                const a = rand(2,8);
+                return {
+                    q: `Factor x² - ${a*a}`,
+                    ans: `(x - ${a})(x + ${a})`,
+                    distractors: [`(x - ${a})²`, `(x + ${a})²`, `x(x-${a})`],
+                    guide: `a² - b² = (a-b)(a+b).`
+                };
+            }},
+
+            { type: "QuadraticSolve", anchor: "A1.1.2.1.2", openEnded: false, gen: () => {
+                const r = rand(2,6);
+                return {
+                    q: `Solve x² = ${r*r}`,
+                    ans: `${r}, -${r}`,
+                    distractors: [`${r}`, `-${r}`, `0`],
+                    guide: `Square root both sides.`
+                };
+            }},
+
+            { type: "LinearEquation", anchor: "A1.1.2.1.1", openEnded: false, gen: () => {
+                const x = rand(2,10), m = rand(2,6), b = rand(1,10);
+                return {
+                    q: `${m}x + ${b} = ${m*x+b}. Solve.`,
+                    ans: x.toString(),
+                    distractors: [(x+1).toString(), (x-1).toString(), b.toString()],
+                    guide: `Isolate x.`
+                };
+            }},
+
+            { type: "SystemSubstitution", anchor: "A1.1.2.2.1", openEnded: false, gen: () => {
+                const x = rand(2,6), y = rand(2,6);
+                return {
+                    q: `x = ${x}, x + y = ${x+y}. Find y.`,
+                    ans: y.toString(),
+                    distractors: [x.toString(), (x+y).toString(), (y+1).toString()],
+                    guide: `Substitute x.`
+                };
+            }},
+
+            { type: "AbsoluteValueEqBasic", anchor: "A1.1.3.1.1", openEnded: false, gen: () => {
+                const n = rand(3,10);
+                return {
+                    q: `Solve |x| = ${n}`,
+                    ans: `${n}, -${n}`,
+                    distractors: [`${n}`, `-${n}`, `0`],
+                    guide: `Two solutions.`
+                };
+            }},
+
+            { type: "InequalitySolve", anchor: "A1.1.3.1.2", openEnded: false, gen: () => {
+                const n = rand(5,20);
+                return {
+                    q: `Solve x + 3 > ${n}`,
+                    ans: `x > ${n-3}`,
+                    distractors: [`x < ${n-3}`, `x > ${n}`, `x = ${n-3}`],
+                    guide: `Subtract 3.`
+                };
+            }},
+
+            { type: "SlopeFind", anchor: "A1.2.1.1.1", openEnded: false, gen: () => {
+                const x1=rand(1,5), y1=rand(1,5), x2=x1+rand(1,5), y2=y1+rand(1,5);
+                return {
+                    q: `Find slope between (${x1},${y1}) and (${x2},${y2})`,
+                    ans: `${y2-y1}/${x2-x1}`,
+                    distractors: [`${x2-x1}/${y2-y1}`, `${y2-y1}`, `${x2-x1}`],
+                    guide: `(y2-y1)/(x2-x1)`
+                };
+            }},
+
+            { type: "SlopeIntercept", anchor: "A1.2.1.2.1", openEnded: false, gen: () => {
+                const m = rand(2,5), b = rand(1,10);
+                return {
+                    q: `What is slope of y = ${m}x + ${b}?`,
+                    ans: m.toString(),
+                    distractors: [b.toString(), (m+b).toString(), "1"],
+                    guide: `Slope = m.`
+                };
+            }},
+
+            { type: "FunctionEvaluate", anchor: "A1.2.2.2.1", openEnded: false, gen: () => {
+                const x=rand(2,5);
+                return {
+                    q: `If f(x)=2x+3, find f(${x})`,
+                    ans: (2*x+3).toString(),
+                    distractors: [(2*x).toString(), (x+3).toString(), (2*x+1).toString()],
+                    guide: `Substitute x.`
+                };
+            }},
+
+            { type: "FunctionDomain", anchor: "A1.2.2.1.1", openEnded: false, gen: () => {
+                return {
+                    q: `What is domain of real-world function?`,
+                    ans: "all valid inputs",
+                    distractors: ["outputs", "range", "graph"],
+                    guide: `Domain = inputs.`
+                };
+            }},
+
+            { type: "ScatterTrend", anchor: "A1.2.3.1.1", openEnded: false, gen: () => {
+                return {
+                    q: `If data rises left to right, what correlation?`,
+                    ans: "positive",
+                    distractors: ["negative", "none", "zero"],
+                    guide: `Upward trend = positive.`
+                };
+            }},
+
+            { type: "LineOfBestFitBasic", anchor: "A1.2.3.2.1", openEnded: false, gen: () => {
+                return {
+                    q: `Line of best fit is used to?`,
+                    ans: "predict values",
+                    distractors: ["find exact points", "remove data", "count points"],
+                    guide: `Used for prediction.`
+                };
+            }}
+        ]
+    }
+};
+
+// GCD helper for fraction simplification
+function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { [a, b] = [b, a % b]; } return a; }

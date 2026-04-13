@@ -1,0 +1,5 @@
+"git add ."  // This adds all the files in the project to the git session
+
+"git commit -m "messsage_here" // This initializes the commit, enter a message in messsage_here
+
+"git push origin main" // Pushes all the files from "git add" to the repository under the name of messsage_here mentioned earlier. 

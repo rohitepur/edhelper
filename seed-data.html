@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Seed Test Data</title>
+    <style>
+        body { font-family: sans-serif; max-width: 700px; margin: 2rem auto; padding: 0 1rem; }
+        button { padding: 1rem 2rem; font-size: 1.1rem; cursor: pointer; background: #004085; color: #fff; border: none; border-radius: 6px; }
+        button:hover { background: #002752; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #log { margin-top: 1rem; padding: 1rem; background: #f4f4f4; border-radius: 6px; font-family: monospace; font-size: 0.85rem; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
+        .warn { color: #856404; }
+        .done { color: #155724; font-weight: bold; }
+        .err { color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Seed Test Data</h1>
+    <p>This will populate your Firebase with fake students, scores, assignments, help requests, and pending approvals for testing.</p>
+    <p><strong>All student passwords:</strong> <code>test123</code></p>
+    <button onclick="seedAll()" id="btn">Seed All Data</button>
+    <button onclick="clearAll()" id="btn-clear" style="background:#721c24;margin-left:0.5rem;">Clear All Data</button>
+    <div id="log"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+        import { getFirestore, collection, doc, getDocs, setDoc, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+        const app = initializeApp({
+            apiKey: "AIzaSyBwc-NTAGSo9KXns_kc_kDYorBd4DAMSzI",
+            authDomain: "pssa-testing.firebaseapp.com",
+            projectId: "pssa-testing",
+            storageBucket: "pssa-testing.firebasestorage.app",
+            messagingSenderId: "995750371410",
+            appId: "1:995750371410:web:552e1b603515d9c4d07f8b"
+        });
+        const db = getFirestore(app);
+
+        const logEl = document.getElementById('log');
+        function log(msg, cls) { logEl.innerHTML += `<div class="${cls || ''}">${msg}</div>`; logEl.scrollTop = logEl.scrollHeight; }
+
+        async function hashPassword(pw) {
+            const data = new TextEncoder().encode(pw);
+            const hash = await crypto.subtle.digest('SHA-256', data);
+            return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        const CLASSES = [
+            { cls: '3', grade: '3' },
+            { cls: '4/5', grade: '4' },
+            { cls: '5/6', grade: '5' },
+            { cls: '6', grade: '6' },
+            { cls: '6/7', grade: '6' },
+            { cls: '7/8', grade: '7' },
+            { cls: 'alg1', grade: '8' },
+            { cls: 'adv-alg1', grade: '8' },
+            { cls: 'alg2', grade: '8' },
+            { cls: 'alg2-geo', grade: '8' },
+        ];
+
+        const FIRST_NAMES = ['Emma', 'Liam', 'Olivia', 'Noah', 'Ava', 'Ethan', 'Sophia', 'Mason', 'Isabella', 'James',
+            'Mia', 'Logan', 'Charlotte', 'Lucas', 'Amelia', 'Alexander', 'Harper', 'Benjamin', 'Ella', 'Henry',
+            'Scarlett', 'Sebastian', 'Grace', 'Jack', 'Lily', 'Owen', 'Chloe', 'Daniel', 'Zoe', 'Aiden',
+            'Nora', 'Matthew', 'Riley', 'Samuel', 'Layla', 'David', 'Penelope', 'Carter', 'Hannah', 'Wyatt',
+            'Aria', 'Jayden', 'Luna', 'John', 'Ellie', 'Luke', 'Mila', 'Dylan', 'Aurora', 'Gabriel',
+            'Camila', 'Anthony', 'Stella', 'Isaac', 'Violet', 'Lincoln', 'Hazel', 'Joshua', 'Paisley', 'Andrew',
+            'Savannah', 'Ryan', 'Brooklyn', 'Nathan', 'Bella', 'Caleb', 'Claire', 'Adrian', 'Skylar', 'Eli',
+            'Lucy', 'Thomas', 'Aaliyah', 'Hunter', 'Anna', 'Aaron', 'Eliana', 'Landon', 'Caroline', 'Connor',
+            'Kennedy', 'Josiah', 'Genesis', 'Robert', 'Sadie', 'Jaxon', 'Allison', 'Levi', 'Aubrey', 'Tyler',
+            'Naomi', 'Christian', 'Elena', 'Isaiah', 'Maya', 'Jordan', 'Willow', 'Max', 'Ruby', 'Parker'];
+
+        const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez',
+            'Anderson', 'Taylor', 'Thomas', 'Moore', 'Jackson', 'Martin', 'Lee', 'Thompson', 'White', 'Harris',
+            'Clark', 'Lewis', 'Robinson', 'Walker', 'Young', 'Allen', 'King', 'Wright', 'Scott', 'Torres',
+            'Hill', 'Green', 'Adams', 'Baker', 'Nelson', 'Carter', 'Mitchell', 'Perez', 'Roberts', 'Turner',
+            'Phillips', 'Campbell', 'Parker', 'Evans', 'Edwards', 'Collins', 'Stewart', 'Sanchez', 'Morris', 'Rogers'];
+
+        const SKILLS = {
+            '3': ['Addition with Multiple Steps', 'Subtraction with Multiple Steps', 'Multiplication', 'Division', 'Basic Fractions', 'Measuring Length', 'Time Addition', 'Area', 'Perimeter', 'Rounding'],
+            '4': ['Decimal Fractions', 'Rounding to Any Place', 'Multi-Step Problems', 'Comparing Fractions', 'Adding Fractions', 'Metric Conversion', 'Angle Types', 'Symmetry', 'Factors', 'Prime vs Composite'],
+            '5': ['Adding Unlike Fractions', 'Place Value', 'Rounding Decimals', 'Decimal Operations', 'Multi-Digit Multiplication', 'Division', 'Volume', 'Coordinate Plane', 'Powers of 10', 'Fraction Multiplication'],
+            '6': ['Dividing Fractions', 'GCF', 'Number Line', 'Comparing Integers', 'Ratios', 'Unit Rates', 'One-Step Equations', 'Area of Trapezoids', 'Surface Area', 'Statistics'],
+            '7': ['Integer Operations', 'Rational Number Multiplication', 'Proportional Relationships', 'Unit Rate', 'Simplifying Expressions', 'Percent Discount', 'Scale Drawings', 'Circle Area', 'Complementary Angles', 'Probability'],
+            '8': ['Scientific Notation', 'Rational vs Irrational', 'Exponent Properties', 'Slope-Intercept Form', 'Linear Functions', 'Pythagorean Theorem', 'Cylinder Volume', 'Systems of Equations', 'Scatter Plots', 'Sphere Volume'],
+        };
+
+        function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+        function pick(arr) { return arr[randInt(0, arr.length - 1)]; }
+        function today() { return new Date().toLocaleDateString(); }
+        function futureDate(days) { const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString().split('T')[0]; }
+
+        let nameIdx = 0;
+        function nextName() {
+            const f = FIRST_NAMES[nameIdx % FIRST_NAMES.length];
+            const l = LAST_NAMES[nameIdx % LAST_NAMES.length];
+            nameIdx++;
+            return { first: f, last: l };
+        }
+
+        window.seedAll = async function() {
+            const btn = document.getElementById('btn');
+            btn.disabled = true;
+            logEl.innerHTML = '';
+
+            try {
+                const pwHash = await hashPassword('test123');
+                log('Password hash for "test123" generated');
+
+                // 1. Class codes
+                log('\n--- Setting class codes ---');
+                const codes = {};
+                CLASSES.forEach(c => { codes[c.cls] = 'TEST' + c.cls.replace(/\//g, '').toUpperCase(); });
+                await setDoc(doc(db, 'config', 'classCodes'), codes);
+                log('Class codes set: ' + Object.entries(codes).map(([k,v]) => k + '=' + v).join(', '), 'done');
+
+                // 2. Students (roster)
+                log('\n--- Creating 100 students (10 per class) ---');
+                const allStudents = [];
+                for (const { cls, grade } of CLASSES) {
+                    for (let i = 0; i < 10; i++) {
+                        const { first, last } = nextName();
+                        const student = {
+                            firstName: first,
+                            lastName: last,
+                            grade: grade,
+                            class: cls,
+                            passwordHash: pwHash,
+                            passwordPlain: 'test123',
+                            parentEmail: `${first.toLowerCase()}.${last.toLowerCase()}@parent.com`,
+                            parentPhone: `${randInt(200,999)}-${randInt(100,999)}-${randInt(1000,9999)}`,
+                            approvedAt: today()
+                        };
+                        await addDoc(collection(db, 'roster'), student);
+                        allStudents.push({ ...student, cls });
+                    }
+                    log(`  Class "${cls}" — 10 students added`);
+                }
+                log(`Total: ${allStudents.length} students created`, 'done');
+
+                // 3. Scores (5 per class = 50 total)
+                log('\n--- Creating 50 test scores ---');
+                let scoreCount = 0;
+                for (const { cls, grade } of CLASSES) {
+                    const classStudents = allStudents.filter(s => s.cls === cls);
+                    const gradeSkills = SKILLS[grade] || SKILLS['6'];
+                    const testLevel = parseInt(grade) <= 8 ? `PSSA Grade ${grade}` : `PSSA Grade 8`;
+
+                    for (let i = 0; i < 5; i++) {
+                        const s = classStudents[i];
+                        const accuracy = randInt(50, 98);
+                        const baseCount = 20;
+                        const correct = Math.round(baseCount * accuracy / 100);
+                        const wrongCount = baseCount - correct;
+
+                        const wrongAnswers = [];
+                        for (let w = 0; w < wrongCount; w++) {
+                            const skill = pick(gradeSkills);
+                            wrongAnswers.push({
+                                question: `Sample ${skill} problem`,
+                                correct: 'Correct answer',
+                                studentAnswer: 'Wrong answer',
+                                guide: `Review ${skill}`,
+                                skill: skill,
+                                type: skill
+                            });
+                        }
+
+                        await addDoc(collection(db, 'scores'), {
+                            student: (s.firstName + ' ' + s.lastName).toLowerCase(),
+                            studentDisplayName: s.firstName + ' ' + s.lastName,
+                            studentGrade: grade,
+                            studentClass: cls,
+                            source: i < 3 ? 'assigned' : 'practice',
+                            testLevel: testLevel,
+                            accuracy: accuracy.toFixed(1),
+                            initialScore: correct,
+                            baseItemCount: baseCount,
+                            redemptions: randInt(0, 3),
+                            totalQuestions: baseCount + randInt(0, 3),
+                            wrongAnswers: wrongAnswers,
+                            allAnswers: [],
+                            terminated: false,
+                            completedAt: today()
+                        });
+                        scoreCount++;
+                    }
+                    log(`  Class "${cls}" — 5 scores added`);
+                }
+                log(`Total: ${scoreCount} scores created`, 'done');
+
+                // 4. Assignments (1 per class)
+                log('\n--- Creating assignments ---');
+                const assignments = {};
+                for (const { cls, grade } of CLASSES) {
+                    const key = 'class:' + cls;
+                    const g = parseInt(grade) || 8;
+                    assignments[key] = [{
+                        type: 'pssa',
+                        grade: g,
+                        redemption: true,
+                        questionCount: 20,
+                        assignedAt: today(),
+                        dueDate: futureDate(5),
+                        name: `PSSA Grade ${g} Practice`
+                    }];
+                }
+                await setDoc(doc(db, 'config', 'assignments'), assignments);
+                log(`${CLASSES.length} assignments created`, 'done');
+
+                // 5. Pending approvals (3)
+                log('\n--- Creating pending approvals ---');
+                const pendingNames = [
+                    { first: 'Alex', last: 'Pending', grade: '6', cls: '6' },
+                    { first: 'Jordan', last: 'Waiting', grade: '7', cls: '7/8' },
+                    { first: 'Sam', last: 'NewKid', grade: '8', cls: 'alg1' },
+                ];
+                for (const p of pendingNames) {
+                    await addDoc(collection(db, 'pending'), {
+                        firstName: p.first,
+                        lastName: p.last,
+                        grade: p.grade,
+                        class: p.cls,
+                        passwordHash: pwHash,
+                        passwordPlain: 'test123',
+                        parentEmail: `${p.first.toLowerCase()}@parent.com`,
+                        parentPhone: `555-${randInt(100,999)}-${randInt(1000,9999)}`,
+                        requestedAt: today()
+                    });
+                }
+                log('3 pending approvals created', 'done');
+
+                // 6. Help requests (5)
+                log('\n--- Creating help requests ---');
+                const helpRequests = [
+                    { student: allStudents[2].firstName + ' ' + allStudents[2].lastName, grade: allStudents[2].grade, cls: allStudents[2].cls, skill: 'dividing fractions', details: 'I keep getting confused about when to flip the fraction', status: 'pending' },
+                    { student: allStudents[15].firstName + ' ' + allStudents[15].lastName, grade: allStudents[15].grade, cls: allStudents[15].cls, skill: 'solving equations', details: 'I dont understand how to isolate the variable', status: 'pending' },
+                    { student: allStudents[30].firstName + ' ' + allStudents[30].lastName, grade: allStudents[30].grade, cls: allStudents[30].cls, skill: 'area and perimeter', details: '', status: 'pending' },
+                    { student: allStudents[45].firstName + ' ' + allStudents[45].lastName, grade: allStudents[45].grade, cls: allStudents[45].cls, skill: 'ratios and proportions', details: 'I need more practice with word problems', status: 'addressed', adminResponse: 'I assigned you a practice set on ratios. Check your assigned tests!' },
+                    { student: allStudents[60].firstName + ' ' + allStudents[60].lastName, grade: allStudents[60].grade, cls: allStudents[60].cls, skill: 'exponents', details: 'power of a power rule confuses me', status: 'addressed', adminResponse: 'Review the rule: (a^m)^n = a^(m*n). I added extra practice for you.' },
+                ];
+                for (const h of helpRequests) {
+                    await addDoc(collection(db, 'helpRequests'), {
+                        student: h.student,
+                        grade: h.grade,
+                        class: h.cls,
+                        skill: h.skill,
+                        details: h.details,
+                        status: h.status,
+                        adminResponse: h.adminResponse || '',
+                        submittedAt: today()
+                    });
+                }
+                log('5 help requests created (3 pending, 2 addressed)', 'done');
+
+                log('\n=== ALL DONE ===', 'done');
+                log('100 students, 50 scores, 10 assignments, 3 pending, 5 help requests');
+                log('All student passwords: test123');
+                log('\nYou can now open admin panel and student portal to test everything!');
+
+            } catch (e) {
+                log('ERROR: ' + e.message, 'err');
+                console.error(e);
+            }
+            btn.disabled = false;
+        };
+
+        window.clearAll = async function() {
+            if (!confirm('This will DELETE ALL data from Firebase. Are you sure?')) return;
+            const btn = document.getElementById('btn-clear');
+            btn.disabled = true;
+            logEl.innerHTML = '';
+
+            try {
+                const collections = ['roster', 'pending', 'scores', 'helpRequests', 'customTests'];
+                for (const col of collections) {
+                    const snap = await getDocs(collection(db, col));
+                    let count = 0;
+                    for (const d of snap.docs) { await deleteDoc(d.ref); count++; }
+                    log(`Deleted ${count} docs from "${col}"`);
+                }
+                // Clear config docs
+                try { await setDoc(doc(db, 'config', 'classCodes'), {}); } catch(e) {}
+                try { await setDoc(doc(db, 'config', 'assignments'), {}); } catch(e) {}
+                log('Cleared config documents');
+                log('\n=== ALL DATA CLEARED ===', 'done');
+            } catch (e) {
+                log('ERROR: ' + e.message, 'err');
+            }
+            btn.disabled = false;
+        };
+    </script>
+</body>
+</html>

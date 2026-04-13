@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assessment Portal — Admin Guide</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fff; color: #212529; line-height: 1.6; }
+        .page { max-width: 800px; margin: 0 auto; padding: 2rem 2.5rem; }
+        h1 { font-size: 2rem; color: #004085; margin-bottom: 0.5rem; }
+        h2 { font-size: 1.4rem; color: #004085; margin: 2.5rem 0 0.75rem; border-bottom: 2px solid #004085; padding-bottom: 0.3rem; }
+        h3 { font-size: 1.1rem; color: #333; margin: 1.5rem 0 0.5rem; }
+        p { margin-bottom: 0.75rem; }
+        .subtitle { font-size: 1rem; color: #666; margin-bottom: 2rem; }
+        .section { margin-bottom: 1.5rem; }
+        .step { padding: 0.5rem 0 0.5rem 1.5rem; border-left: 3px solid #004085; margin-bottom: 0.5rem; }
+        .step-num { font-weight: 700; color: #004085; }
+        .tip { background: #e6f2ff; padding: 0.75rem 1rem; border-radius: 6px; margin: 0.75rem 0; font-size: 0.9rem; }
+        .tip strong { color: #004085; }
+        .warn { background: #fff3cd; padding: 0.75rem 1rem; border-radius: 6px; margin: 0.75rem 0; font-size: 0.9rem; }
+        .warn strong { color: #856404; }
+        table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+        th, td { border: 1px solid #dee2e6; padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: #f8f9fa; font-weight: 600; }
+        code { background: #f4f4f4; padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.85rem; }
+        .toc { background: #f8f9fa; padding: 1rem 1.5rem; border-radius: 8px; margin-bottom: 2rem; }
+        .toc a { color: #004085; text-decoration: none; display: block; padding: 0.2rem 0; }
+        .toc a:hover { text-decoration: underline; }
+        @media print {
+            .page { padding: 1rem; }
+            h2 { page-break-before: always; }
+            h2:first-of-type { page-break-before: avoid; }
+            .tip, .warn { break-inside: avoid; }
+        }
+        .print-btn { position: fixed; top: 1rem; right: 1rem; padding: 0.5rem 1.5rem; background: #004085; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; z-index: 100; }
+        .print-btn:hover { background: #002752; }
+        @media print { .print-btn { display: none; } }
+    </style>
+</head>
+<body>
+    <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+    <div class="page">
+
+        <h1>Assessment Portal</h1>
+        <p class="subtitle">Complete Admin & Teacher Guide</p>
+
+        <div class="toc">
+            <strong>Table of Contents</strong>
+            <a href="#getting-started">1. Getting Started</a>
+            <a href="#classes">2. Managing Classes</a>
+            <a href="#students">3. Managing Students</a>
+            <a href="#assigning">4. Assigning Tests</a>
+            <a href="#custom-tests">5. Creating Custom Tests</a>
+            <a href="#scores">6. Viewing Scores</a>
+            <a href="#activity">7. Student Activity</a>
+            <a href="#help-requests">8. Help Requests</a>
+            <a href="#pending">9. Approving Students</a>
+            <a href="#roster">10. Student Roster</a>
+            <a href="#student-profiles">11. Student Profiles</a>
+            <a href="#student-side">12. Student Side Overview</a>
+            <a href="#firebase">13. Data & Firebase</a>
+            <a href="#troubleshooting">14. Troubleshooting</a>
+        </div>
+
+        <!-- 1. GETTING STARTED -->
+        <h2 id="getting-started">1. Getting Started</h2>
+
+        <h3>Admin Login</h3>
+        <div class="step"><span class="step-num">1.</span> Go to <code>yoursite.com/admin/</code></div>
+        <div class="step"><span class="step-num">2.</span> Username: <code>ADMIN</code></div>
+        <div class="step"><span class="step-num">3.</span> Password: <code>ADMIN123!</code></div>
+
+        <div class="warn"><strong>Important:</strong> The admin login is separate from student accounts. Admin sessions don't interfere with student sessions on other devices.</div>
+
+        <h3>Admin Sidebar</h3>
+        <p>The sidebar on the left has all admin sections:</p>
+        <table>
+            <tr><th>Tab</th><th>What it does</th></tr>
+            <tr><td>Classes</td><td>Manage classes, schedules, join codes, test plans</td></tr>
+            <tr><td>Students</td><td>View all students in a sortable, paginated table</td></tr>
+            <tr><td>Assign Test</td><td>Create and assign PSSA/Keystone/Custom tests</td></tr>
+            <tr><td>Current Assignments</td><td>View all active test assignments grouped by target</td></tr>
+            <tr><td>Scores</td><td>Class summaries, individual scores, misconceptions</td></tr>
+            <tr><td>Activity</td><td>See when each student last logged in</td></tr>
+            <tr><td>Help Requests</td><td>Student help requests and password resets</td></tr>
+            <tr><td>Pending</td><td>Approve or reject student registrations</td></tr>
+            <tr><td>Roster</td><td>Detailed class-by-class student roster</td></tr>
+        </table>
+
+        <!-- 2. CLASSES -->
+        <h2 id="classes">2. Managing Classes</h2>
+
+        <h3>Viewing Classes</h3>
+        <p>The Classes tab shows a table with all classes, their join codes, schedules, and breaks.</p>
+
+        <h3>Editing a Class</h3>
+        <div class="step"><span class="step-num">1.</span> Click the class name in the table</div>
+        <div class="step"><span class="step-num">2.</span> An editor opens at the bottom with fields for:</div>
+        <ul style="margin-left:2rem;margin-bottom:0.75rem;">
+            <li><strong>Class Name</strong> — display name shown everywhere</li>
+            <li><strong>Join Code</strong> — students need this to register</li>
+            <li><strong>Start/End Date</strong> — class duration</li>
+            <li><strong>Schedule</strong> — click "+ Add Day" for each class meeting (day + start/end time)</li>
+            <li><strong>Breaks</strong> — click "+ Add Break" for holidays (name + start/end date)</li>
+            <li><strong>Test Plan</strong> — add tests you plan to give (PSSA, Keystone, STARR, Regents, MathCounts)</li>
+        </ul>
+        <div class="step"><span class="step-num">3.</span> Click "Save" when done</div>
+
+        <h3>Adding a New Class</h3>
+        <div class="step"><span class="step-num">1.</span> Scroll to the bottom of the Classes page</div>
+        <div class="step"><span class="step-num">2.</span> Type the class name (e.g. "Geometry")</div>
+        <div class="step"><span class="step-num">3.</span> Click "Add Class" — the editor opens immediately</div>
+
+        <h3>Quick Assign from Classes</h3>
+        <p>Each class row has an "Assign Test" button. Clicking it opens a dedicated assign page with the class pre-selected.</p>
+
+        <!-- 3. STUDENTS -->
+        <h2 id="students">3. Managing Students</h2>
+
+        <h3>Students Table</h3>
+        <p>Shows all students in a flat table with 15 per page. Features:</p>
+        <ul style="margin-left:2rem;margin-bottom:0.75rem;">
+            <li><strong>Sortable columns</strong> — click Name, Grade, Classes, or Parent Phone to sort (click again to reverse)</li>
+            <li><strong>Search</strong> — type to filter by name, phone, or class</li>
+            <li><strong>Pagination</strong> — Prev/Next arrows at the bottom</li>
+            <li><strong>Click any name</strong> — opens full student profile in a new browser tab</li>
+        </ul>
+
+        <!-- 4. ASSIGNING TESTS -->
+        <h2 id="assigning">4. Assigning Tests</h2>
+
+        <h3>Standard Tests (PSSA / Keystone)</h3>
+        <div class="step"><span class="step-num">1.</span> Go to "Assign Test" tab</div>
+        <div class="step"><span class="step-num">2.</span> Select "Assign By" — Grade, Class, or Individual Student</div>
+        <div class="step"><span class="step-num">3.</span> Select Test Type — PSSA or Keystone</div>
+        <div class="step"><span class="step-num">4.</span> Set grade, number of questions, test name (optional)</div>
+        <div class="step"><span class="step-num">5.</span> Set due date, available-at time (optional), time limit (optional)</div>
+        <div class="step"><span class="step-num">6.</span> Click "Assign Test"</div>
+
+        <h3>Custom Tests</h3>
+        <div class="step"><span class="step-num">1.</span> Go to "Assign Test" tab → click "Custom Test" sub-tab</div>
+        <div class="step"><span class="step-num">2.</span> Paste your problems (with A/B/C/D options and ANSWERS section)</div>
+        <div class="step"><span class="step-num">3.</span> Check "Make Dynamic" if you want numbers to change each time</div>
+        <div class="step"><span class="step-num">4.</span> Click "Process Questions"</div>
+        <div class="step"><span class="step-num">5.</span> Review the parsed questions, remove any bad ones</div>
+        <div class="step"><span class="step-num">6.</span> Set test name, due date, time limit</div>
+        <div class="step"><span class="step-num">7.</span> Click "Save & Assign"</div>
+
+        <h3>Scheduling Tests</h3>
+        <p>Use the "Available At" field to schedule a test for a future time. Students will see the test grayed out with a countdown until it unlocks.</p>
+
+        <h3>Individual Student Assignment</h3>
+        <p>You can assign tests to individual students from:</p>
+        <ul style="margin-left:2rem;margin-bottom:0.75rem;">
+            <li>The Assign Test page (select "Individual Student")</li>
+            <li>A student's profile page (Assign Test tab)</li>
+        </ul>
+
+        <!-- 5. CUSTOM TESTS -->
+        <h2 id="custom-tests">5. Creating Custom Tests</h2>
+
+        <h3>Supported Formats</h3>
+        <p>The parser handles two PDF formats:</p>
+
+        <p><strong>Kuta Software format:</strong></p>
+        <pre style="background:#f4f4f4;padding:0.75rem;border-radius:4px;font-size:0.85rem;margin-bottom:0.75rem;">1) 28.2 × 1.7 × 0.3
+a) 2.842
+b) 14.382
+c) 28.042
+d) 143.82
+
+ANSWERS
+B</pre>
+
+        <p><strong>PSSA Sampler format:</strong></p>
+        <pre style="background:#f4f4f4;padding:0.75rem;border-radius:4px;font-size:0.85rem;margin-bottom:0.75rem;">1 An expression is shown below...
+A – 0.651
+B – 0.093
+C 0.093
+D 0.651
+
+(Answer key in summary table at bottom)</pre>
+
+        <h3>Dynamic Questions</h3>
+        <p>When "Make Dynamic" is checked, the system detects math operations in each question and randomizes the numbers. Students get different numbers each time they take the test.</p>
+
+        <div class="tip"><strong>Tip:</strong> Questions that can't be dynamized (conceptual questions, graph questions) are automatically kept static or filtered out.</div>
+
+        <h3>Questions That Get Filtered Out</h3>
+        <p>The parser automatically removes:</p>
+        <ul style="margin-left:2rem;margin-bottom:0.75rem;">
+            <li>Graph/diagram questions ("shown below")</li>
+            <li>Number line questions</li>
+            <li>Box plot / histogram questions</li>
+            <li>Questions with no text content</li>
+            <li>Kuta Software copyright junk</li>
+        </ul>
+
+        <!-- 6. SCORES -->
+        <h2 id="scores">6. Viewing Scores</h2>
+
+        <h3>Three Sub-tabs</h3>
+        <table>
+            <tr><th>Sub-tab</th><th>Shows</th></tr>
+            <tr><td>Class Summaries</td><td>Average score per class, top struggling skills</td></tr>
+            <tr><td>Individual Scores</td><td>All scores grouped by class, click name for details</td></tr>
+            <tr><td>Misconceptions</td><td>Skills where 50%+ students got it wrong, sorted by grade</td></tr>
+        </table>
+
+        <h3>Score Details</h3>
+        <p>Click a student's name in Individual Scores to see:</p>
+        <ul style="margin-left:2rem;margin-bottom:0.75rem;">
+            <li>Test name, score, questions, wrong count</li>
+            <li>Skills they struggled with</li>
+            <li>Link to open their full profile</li>
+        </ul>
+
+        <h3>Exporting</h3>
+        <p>Click "Export" to download an Excel file with:</p>
+        <ul style="margin-left:2rem;margin-bottom:0.75rem;">
+            <li>"All Scores" sheet</li>
+            <li>One sheet per class</li>
+            <li>"Summary" sheet with averages, highest/lowest, top struggling skill per class</li>
+        </ul>
+
+        <!-- 7. ACTIVITY -->
+        <h2 id="activity">7. Student Activity</h2>
+        <p>Shows when each student last logged in. Summary cards at the top:</p>
+        <ul style="margin-left:2rem;margin-bottom:0.75rem;">
+            <li><strong style="color:green;">Active Today</strong> — logged in today</li>
+            <li><strong style="color:blue;">Active This Week</strong> — logged in within 7 days</li>
+            <li><strong style="color:red;">Inactive</strong> — no login for 7+ days (highlighted red)</li>
+        </ul>
+        <p>Grouped by class. Last active time is recorded on login and test completion.</p>
+
+        <!-- 8. HELP REQUESTS -->
+        <h2 id="help-requests">8. Help Requests</h2>
+        <p>Students can submit help requests from their "Request Help" tab. Each request includes:</p>
+        <ul style="margin-left:2rem;margin-bottom:0.75rem;">
+            <li>Skill they need help with (free text)</li>
+            <li>What they're struggling with (optional description)</li>
+        </ul>
+
+        <h3>Admin Actions</h3>
+        <table>
+            <tr><th>Button</th><th>What it does</th></tr>
+            <tr><td>Respond</td><td>Type a response the student will see</td></tr>
+            <tr><td>Mark Done</td><td>Mark as addressed without a response</td></tr>
+            <tr><td>Dismiss</td><td>Delete the request</td></tr>
+        </table>
+
+        <h3>Password Resets</h3>
+        <p>Students can request password resets from the login page. These appear as "PASSWORD RESET" requests with a "Reset Password" button that lets you set a new password.</p>
+
+        <!-- 9. PENDING -->
+        <h2 id="pending">9. Approving Students</h2>
+        <h3>Registration Flow</h3>
+        <div class="step"><span class="step-num">1.</span> Student goes to the site and clicks "Register"</div>
+        <div class="step"><span class="step-num">2.</span> They fill in: name, grade, class, class code, parent email/phone, password</div>
+        <div class="step"><span class="step-num">3.</span> The class code must match what you set in Classes</div>
+        <div class="step"><span class="step-num">4.</span> Their request appears in the Pending tab</div>
+        <div class="step"><span class="step-num">5.</span> Click "Approve" or "Reject"</div>
+        <div class="step"><span class="step-num">6.</span> Once approved, the student can log in</div>
+
+        <div class="tip"><strong>Tip:</strong> You can bulk approve/reject using the checkboxes and bulk action buttons.</div>
+
+        <!-- 10. ROSTER -->
+        <h2 id="roster">10. Student Roster</h2>
+        <p>Shows all approved students grouped by class. Each class section is collapsible.</p>
+        <p>Table columns: Name, Grade, Classes, Parent Phone</p>
+        <p>Click a student name to open their full profile in a new tab.</p>
+        <p>Use "Export" to download the roster as an Excel file with one sheet per class.</p>
+
+        <!-- 11. STUDENT PROFILES -->
+        <h2 id="student-profiles">11. Student Profiles</h2>
+        <p>Click any student name (in Roster, Students, or Scores) to open their profile in a new browser tab.</p>
+
+        <h3>Profile Tab</h3>
+        <p>Shows: name, grade, all enrolled classes, class schedule/timings, parent email, parent phone, last active, class history.</p>
+
+        <h3>Scores Tab</h3>
+        <p>Shows:</p>
+        <ul style="margin-left:2rem;margin-bottom:0.75rem;">
+            <li><strong>Assigned Tests</strong> — test name, when assigned, due date, status (Completed/Not taken), score, when taken</li>
+            <li><strong>Practice Tests</strong> — tests taken outside of assignments</li>
+            <li><strong>Struggling Skills</strong> — top skills they missed</li>
+        </ul>
+
+        <h3>Requests Tab</h3>
+        <p>All help requests from this student with your responses.</p>
+
+        <h3>Assign Test Tab</h3>
+        <p>Assign a test directly to this student — PSSA/Keystone or Custom Test.</p>
+
+        <!-- 12. STUDENT SIDE -->
+        <h2 id="student-side">12. Student Side Overview</h2>
+
+        <h3>Login</h3>
+        <p>Students enter first name, last name, and password. First-time users click "Register" to create an account.</p>
+
+        <h3>Student Sidebar</h3>
+        <table>
+            <tr><th>Tab</th><th>What students see</th></tr>
+            <tr><td>Assigned</td><td>Tests assigned to them (by class, grade, or individually)</td></tr>
+            <tr><td>PSSA Practice</td><td>Free practice tests by grade level</td></tr>
+            <tr><td>Keystone</td><td>Keystone practice tests</td></tr>
+            <tr><td>My Progress</td><td>Score history, trend bars, areas to improve</td></tr>
+            <tr><td>My Class</td><td>Class info, schedule, breaks for all enrolled classes</td></tr>
+            <tr><td>Request Help</td><td>Submit help requests, see teacher responses</td></tr>
+            <tr><td>Settings</td><td>Profile info, join additional classes, test display settings</td></tr>
+        </table>
+
+        <h3>Taking a Test</h3>
+        <ul style="margin-left:2rem;margin-bottom:0.75rem;">
+            <li>Timer shows at top if time limit is set (turns red under 60 seconds)</li>
+            <li>Auto-submits when timer runs out</li>
+            <li>Focus monitoring — warnings for tab switching, terminated after repeated violations</li>
+            <li>Redemption questions for wrong answers (if enabled)</li>
+            <li>Results page shows score, skills breakdown, and "Print Report" button</li>
+        </ul>
+
+        <h3>Multi-Class Support</h3>
+        <p>Students can join multiple classes via Settings → "Join Another Class". They see tests from ALL their classes in one combined Assigned list.</p>
+
+        <!-- 13. FIREBASE -->
+        <h2 id="firebase">13. Data & Firebase</h2>
+
+        <h3>Where Data Lives</h3>
+        <table>
+            <tr><th>Collection</th><th>What's stored</th></tr>
+            <tr><td>roster</td><td>Approved students (name, grade, classes, password, parent info)</td></tr>
+            <tr><td>pending</td><td>Students waiting for approval</td></tr>
+            <tr><td>scores</td><td>All test scores and results</td></tr>
+            <tr><td>helpRequests</td><td>Student help requests and admin responses</td></tr>
+            <tr><td>customTests</td><td>Custom tests you created</td></tr>
+            <tr><td>config/classCodes</td><td>Join codes per class</td></tr>
+            <tr><td>config/assignments</td><td>All test assignments</td></tr>
+            <tr><td>config/classData</td><td>Class schedules, dates, breaks, test plans</td></tr>
+        </table>
+
+        <div class="tip"><strong>Tip:</strong> Data persists through code pushes to Vercel. Firebase is separate from your code files.</div>
+
+        <h3>Auto-Refresh</h3>
+        <table>
+            <tr><th>What</th><th>How often</th></tr>
+            <tr><td>Pending approvals, Help requests</td><td>Every 5 seconds</td></tr>
+            <tr><td>Misconceptions</td><td>Every 15 seconds</td></tr>
+            <tr><td>Student assigned tests</td><td>Every 10 seconds</td></tr>
+            <tr><td>Student badges</td><td>Every 30 seconds</td></tr>
+        </table>
+
+        <h3>Offline Mode</h3>
+        <p>The site has a service worker that caches all files. If WiFi drops during a test, the student can continue. Scores save to localStorage and sync to Firebase when connection returns.</p>
+
+        <!-- 14. TROUBLESHOOTING -->
+        <h2 id="troubleshooting">14. Troubleshooting</h2>
+
+        <h3>Common Issues</h3>
+        <table>
+            <tr><th>Problem</th><th>Solution</th></tr>
+            <tr><td>Student can't log in</td><td>Check they're approved in Pending tab. Check password is correct in Roster.</td></tr>
+            <tr><td>Student doesn't see assigned test</td><td>Check the test is assigned to their class/grade. Check the "Available At" date hasn't passed yet.</td></tr>
+            <tr><td>Scores not showing</td><td>Wait 10-15 seconds for sync. Check browser console for errors.</td></tr>
+            <tr><td>Custom test questions look wrong</td><td>The PDF paste may have formatting issues. Use the Remove button to delete bad questions before saving.</td></tr>
+            <tr><td>Admin page not loading</td><td>Hard refresh (Ctrl+Shift+R). Check internet connection.</td></tr>
+            <tr><td>Student forgot password</td><td>They can click "Forgot password?" on login. You'll see a reset request in Help Requests.</td></tr>
+            <tr><td>"Unknown skill" in reports</td><td>Older scores may not have skill data. New scores will show proper skill names.</td></tr>
+        </table>
+
+        <h3>Firebase Console</h3>
+        <p>To view raw data: Go to <code>console.firebase.google.com</code> → your project → Firestore Database</p>
+
+        <div style="margin-top:3rem;padding-top:1rem;border-top:2px solid #004085;text-align:center;color:#666;font-size:0.85rem;">
+            Assessment Portal — Admin Guide<br>
+            Generated on <script>document.write(new Date().toLocaleDateString())</script>
+        </div>
+
+    </div>
+</body>
+</html>

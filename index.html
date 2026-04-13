@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PSSA Practice Assessment</title>
+    <link rel="stylesheet" href="css/styles.css?v=20260411e">
+    <link rel="manifest" href="/manifest.json">
+    <script type="module" src="js/firebase-config.js"></script>
+</head>
+<body>
+    <div id="offline-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--warning);color:#fff;text-align:center;padding:0.4rem;font-size:0.8rem;font-weight:600;">You're offline — your work is saved and will sync when you reconnect</div>
+
+    <header>
+        <h1>Assessment Portal</h1>
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+            <button class="sidebar-toggle" id="mobile-sidebar-toggle" onclick="toggleMobileSidebar()">
+                <span></span><span></span><span></span>
+            </button>
+            <div class="session-id" id="session-id" style="display:none;"></div>
+            <button id="logout-btn" style="display:none !important;"></button>
+            <div class="hamburger-wrap" id="test-tabs" style="display:none;"></div>
+        </div>
+    </header>
+
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
+
+    <nav class="sidebar hidden" id="sidebar">
+        <div class="sidebar-profile" id="sidebar-profile">
+            <div class="sidebar-profile-name" id="profile-name"></div>
+        </div>
+        <div class="sidebar-nav">
+            <button class="sidebar-item active" onclick="switchTestType('assigned', this)" data-section="assigned">Assigned <span id="badge-assigned" class="section-badge" style="display:none;"></span></button>
+            <button class="sidebar-item" onclick="switchTestType('pssa', this)" data-section="pssa">PSSA Practice</button>
+            <button class="sidebar-item" onclick="switchTestType('keystone', this)" data-section="keystone">Keystone</button>
+            <button class="sidebar-item" onclick="switchTestType('progress', this)" data-section="progress">My Progress</button>
+            <button class="sidebar-item" onclick="switchTestType('courseInfo', this)" data-section="courseInfo">My Class</button>
+            <button class="sidebar-item" onclick="switchTestType('help', this)" data-section="help">Request Help <span id="badge-help" class="section-badge" style="display:none;"></span></button>
+            <button class="sidebar-item" onclick="switchTestType('settings', this)" data-section="settings">Settings</button>
+        </div>
+        <div class="sidebar-bottom">
+            <button class="sidebar-item" onclick="toggleTheme()" id="theme-toggle">Dark Mode</button>
+            <button class="sidebar-item sidebar-signout" onclick="logout()">Sign Out</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        
+        <div id="view-login" class="panel">
+            <h2>Welcome to the Assessment Portal</h2>
+            <p class="instructions">Enter your name and password to log in.</p>
+            <div class="login-form">
+                <div class="login-name-row">
+                    <div style="flex:1;">
+                        <label class="admin-label">First Name</label>
+                        <input type="text" id="login-first" class="text-input" placeholder="First name..." autocomplete="off">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="admin-label">Last Name</label>
+                        <input type="text" id="login-last" class="text-input" placeholder="Last name..." autocomplete="off">
+                    </div>
+                </div>
+                <div>
+                    <label class="admin-label">Password</label>
+                    <input type="password" id="login-password" class="text-input" placeholder="Enter your password..." onkeypress="if(event.key==='Enter') login()">
+                </div>
+                <div id="login-status" style="display:none;padding:0.75rem;margin:0.5rem 0;border-radius:6px;font-size:0.9rem;"></div>
+                <button class="btn" id="login-btn" onclick="login()">Sign In</button>
+                <p style="text-align:center;margin-top:0.75rem;font-size:0.85rem;">
+                    <a href="#" onclick="showForgotPassword()" style="color:var(--text-secondary);">Forgot password?</a>
+                </p>
+                <p style="text-align:center;margin-top:0.5rem;font-size:0.9rem;color:var(--text-secondary);">
+                    Don't have an account? <a href="#" onclick="showRegister()" style="color:var(--primary-color);font-weight:600;">Register here</a>
+                </p>
+            </div>
+        </div>
+
+        <div id="view-forgot" class="panel hidden">
+            <h2>Reset Password</h2>
+            <p class="instructions">Enter your name to request a password reset. Your teacher will set a new password for you.</p>
+            <div class="login-form" style="max-width:400px;">
+                <div class="login-name-row">
+                    <div style="flex:1;">
+                        <label class="admin-label">First Name</label>
+                        <input type="text" id="forgot-first" class="text-input" placeholder="First name...">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="admin-label">Last Name</label>
+                        <input type="text" id="forgot-last" class="text-input" placeholder="Last name...">
+                    </div>
+                </div>
+                <div id="forgot-status" style="display:none;padding:0.5rem;border-radius:8px;font-size:0.85rem;margin:0.5rem 0;"></div>
+                <button class="btn" onclick="requestPasswordReset()">Request Reset</button>
+                <p style="text-align:center;margin-top:1rem;font-size:0.9rem;">
+                    <a href="#" onclick="showLogin()" style="color:var(--primary-color);font-weight:600;">Back to Sign In</a>
+                </p>
+            </div>
+        </div>
+
+        <div id="view-register" class="panel hidden">
+            <h2>Create Your Account</h2>
+            <p class="instructions">Fill out all fields below to register. Your teacher will approve your account.</p>
+            <div class="login-form">
+                <div class="login-name-row">
+                    <div style="flex:1;">
+                        <label class="admin-label">First Name</label>
+                        <input type="text" id="reg-first" class="text-input" placeholder="First name..." autocomplete="off">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="admin-label">Last Name</label>
+                        <input type="text" id="reg-last" class="text-input" placeholder="Last name..." autocomplete="off">
+                    </div>
+                </div>
+                <div class="login-name-row">
+                    <div style="flex:1;">
+                        <label class="admin-label">Grade</label>
+                        <select id="reg-grade" class="text-input">
+                            <option value="">Select grade...</option>
+                            <option value="3">Grade 3</option>
+                            <option value="4">Grade 4</option>
+                            <option value="5">Grade 5</option>
+                            <option value="6">Grade 6</option>
+                            <option value="7">Grade 7</option>
+                            <option value="8">Grade 8</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;">
+                        <label class="admin-label">Class</label>
+                        <select id="reg-class" class="text-input">
+                            <option value="">Select class...</option>
+                            <option value="3">3</option>
+                            <option value="4/5">4/5</option>
+                            <option value="5/6">5/6</option>
+                            <option value="6">6</option>
+                            <option value="6/7">6/7</option>
+                            <option value="7/8">7/8</option>
+                            <option value="alg1">Alg 1</option>
+                            <option value="adv-alg1">Adv Alg 1</option>
+                            <option value="alg2">Alg 2</option>
+                            <option value="alg2-geo">Alg 2/Geo</option>
+                            <option value="precalc">Precalc</option>
+                            <option value="math-analysis">Math Analysis</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="admin-label">Class Code</label>
+                    <input type="text" id="reg-code" class="text-input" placeholder="Enter the class code from your teacher..." autocomplete="off">
+                </div>
+                <div class="login-name-row">
+                    <div style="flex:1;">
+                        <label class="admin-label">Parent/Guardian Email</label>
+                        <input type="email" id="reg-parent-email" class="text-input" placeholder="parent@email.com" autocomplete="off">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="admin-label">Parent/Guardian Phone</label>
+                        <input type="tel" id="reg-parent-phone" class="text-input" placeholder="555-123-4567" autocomplete="off" maxlength="12" oninput="formatPhone(this)">
+                    </div>
+                </div>
+                <div>
+                    <label class="admin-label">Password</label>
+                    <input type="password" id="reg-password" class="text-input" placeholder="Create a password..." autocomplete="off">
+                </div>
+                <div>
+                    <label class="admin-label">Confirm Password</label>
+                    <input type="password" id="reg-password-confirm" class="text-input" placeholder="Re-enter your password..." autocomplete="off">
+                </div>
+                <div id="reg-status" style="display:none;padding:0.75rem;margin:0.5rem 0;border-radius:6px;font-size:0.9rem;"></div>
+                <button class="btn" onclick="register()">Register</button>
+                <p style="text-align:center;margin-top:1rem;font-size:0.9rem;color:var(--text-secondary);">
+                    Already have an account? <a href="#" onclick="showLogin()" style="color:var(--primary-color);font-weight:600;">Sign in here</a>
+                </p>
+            </div>
+        </div>
+
+        <div id="view-pending" class="panel hidden">
+            <h2>Registration Submitted</h2>
+            <p class="instructions">Your registration has been submitted. Please wait for your teacher to approve your account.</p>
+            <p id="pending-status" style="font-size:0.9rem;color:var(--text-secondary);"></p>
+            <button class="btn" onclick="location.reload()" style="margin-top:1rem;">Check Again</button>
+        </div>
+
+        <div id="view-dashboard" class="panel hidden">
+            <h2>Select Assessment Level</h2>
+            <p class="instructions">Choose the grade level to create a standardized question bank. Each question will be unique and include extra follow up tasks.</p>
+            <div class="grid-select">
+                <button class="btn-outline" onclick="generateBank(3)">Grade 3 Test</button>
+                <button class="btn-outline" onclick="generateBank(4)">Grade 4 Test</button>
+                <button class="btn-outline" onclick="generateBank(5)">Grade 5 Test</button>
+                <button class="btn-outline" onclick="generateBank(6)">Grade 6 Test</button>
+                <button class="btn-outline" onclick="generateBank(7)">Grade 7 Test</button>
+                <button class="btn-outline" onclick="generateBank(8)">Grade 8 Test</button>
+            </div>
+        </div>
+
+        <div id="view-keystone-dashboard" class="panel hidden">
+            <h2>Select Keystone Exam</h2>
+            <p class="instructions">Choose a Keystone exam subject to practice. Each question is calibrated to Keystone standards.</p>
+            <div class="grid-select">
+                <button class="btn-outline" onclick="generateKeystoneBank('algebra')">Algebra I</button>
+            </div>
+        </div>
+
+        <div id="view-assessment" class="panel hidden">
+            <div class="status-bar">
+                <span id="label-grade">Level: --</span>
+                <span id="timer-display" style="display:none;font-family:monospace;font-weight:700;"></span>
+                <span id="label-progress">Question 1 of 20</span>
+            </div>
+
+            <!-- Progress bar (toggleable via settings) -->
+            <div id="test-progress-bar" class="test-progress-wrap hidden">
+                <div class="test-progress-track">
+                    <div class="test-progress-fill" id="test-progress-fill"></div>
+                </div>
+                <span class="test-progress-pct" id="test-progress-pct">0%</span>
+            </div>
+
+            <div class="question-block" id="container-question">Loading item...</div>
+            <div class="graph-wrapper" id="container-graph"></div>
+
+            <div class="options-list" id="container-options"></div>
+
+            <div id="container-feedback" class="hidden"></div>
+
+            <div class="nav-bar">
+                <div class="nav-left">
+                    <button class="btn-nav" onclick="navigatePrev()" title="Previous">&larr; Prev</button>
+                    <button class="btn-nav" onclick="skipQuestion()" title="Skip">Skip</button>
+                    <button class="btn-nav" id="btn-flag" onclick="toggleFlag()" title="Flag for Review">&#9873; Flag</button>
+                    <div class="test-settings-wrap">
+                        <button class="btn-nav" onclick="toggleTestSettingsPopup()" title="Test Settings">&#8942;</button>
+                        <div id="test-settings-popup" class="test-settings-popup hidden">
+                            <label><input type="checkbox" id="quick-setting-qmap" onchange="document.getElementById('setting-question-map').checked=this.checked;saveTestSettings()"> Question Map</label>
+                            <label><input type="checkbox" id="quick-setting-pbar" onchange="document.getElementById('setting-progress-bar').checked=this.checked;saveTestSettings()"> Progress Bar</label>
+                            <label><input type="checkbox" id="quick-setting-nav" onchange="document.getElementById('setting-nav-buttons').checked=this.checked;saveTestSettings()"> Nav Buttons</label>
+                            <label><input type="checkbox" id="quick-setting-flag" onchange="document.getElementById('setting-flag-button').checked=this.checked;saveTestSettings()"> Flag Button</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="nav-right">
+                    <button id="hint-btn" class="hint-toggle" onclick="toggleHint()">Show Hint</button>
+                    <button class="btn" id="btn-action" onclick="processResponse()" disabled>Submit Response</button>
+                    <button class="btn-nav" onclick="navigateNext()" title="Next">Next &rarr;</button>
+                </div>
+            </div>
+            <div id="hint-content" class="hint-content hidden"></div>
+
+            <!-- Question map at bottom (toggleable via settings) -->
+            <div id="question-map" class="question-map hidden"></div>
+        </div>
+
+        <div id="view-results" class="panel hidden">
+            <div id="results-report">
+                <div style="text-align:center;margin-bottom:1.5rem;">
+                    <h2 style="margin-bottom:0.25rem;">Test Report</h2>
+                    <div id="res-student-name" style="font-size:1.1rem;font-weight:600;"></div>
+                    <div style="display:flex;justify-content:center;gap:1.5rem;margin-top:0.5rem;font-size:0.85rem;color:var(--text-secondary);">
+                        <span id="res-test-name"></span>
+                        <span id="res-date"></span>
+                    </div>
+                </div>
+
+                <div id="res-score-display" style="text-align:center;margin:1.5rem 0;padding:1.5rem;border-radius:8px;">
+                    <div id="res-score-big" style="font-size:3rem;font-weight:800;"></div>
+                    <div style="font-size:0.9rem;color:var(--text-secondary);">First-Try Accuracy</div>
+                </div>
+
+                <table class="data-table" style="max-width:100%;margin:0 auto 1.5rem;">
+                    <tr><th>Questions</th><td id="res-base">20</td></tr>
+                    <tr><th>Accuracy</th><td id="res-accuracy">--</td></tr>
+                    <tr id="res-redemptions-row"><th>Redemption Questions</th><td id="res-redemptions">0</td></tr>
+                    <tr><th>Total Answered</th><td id="res-total">20</td></tr>
+                </table>
+
+                <div id="res-skills-section" style="margin-top:1.5rem;">
+                    <h3 style="font-size:0.95rem;color:var(--primary-color);margin-bottom:0.5rem;">Skills Breakdown</h3>
+                    <div id="res-skills-list"></div>
+                </div>
+            </div>
+
+            <div class="no-print" style="margin-top:1.5rem;display:flex;gap:0.75rem;justify-content:center;">
+                <button class="btn" onclick="window.print()">Print Report</button>
+                <button class="btn" onclick="safelyCloseSession()" style="background:var(--text-secondary);">Close Session</button>
+            </div>
+        </div>
+
+        <div id="view-terminated" class="panel hidden" style="border-top-color: var(--incorrect);">
+            <h2 style="color: var(--incorrect);">Session Terminated</h2>
+            <p class="instructions">Your testing session has been automatically closed due to repeated focus violations. Please notify your administrator.</p>
+            <button class="btn" onclick="safelyCloseSession()">Return to Start</button>
+        </div>
+
+        <div id="view-assigned" class="panel hidden">
+            <h2>Assigned Tests</h2>
+            <p class="instructions">The following tests have been assigned to you by your administrator. Click a test to begin.</p>
+            <div id="assigned-tests-list">
+                <p style="color: var(--text-secondary);">No tests have been assigned to you yet.</p>
+            </div>
+        </div>
+
+        <div id="view-progress" class="panel hidden">
+            <h2>My Progress</h2>
+            <p class="instructions">Review your score history and areas for improvement.</p>
+            <div id="progress-summary-cards" class="progress-cards"></div>
+            <div id="progress-trend"></div>
+            <div id="progress-history"></div>
+            <div id="progress-weak-topics"></div>
+        </div>
+
+        <div id="view-courseInfo" class="panel hidden">
+            <h2>My Class</h2>
+            <div id="course-info-content">
+                <p style="color:var(--text-secondary);">Loading class info...</p>
+            </div>
+        </div>
+
+        <div id="view-help" class="panel hidden">
+            <h2>Request Help</h2>
+            <p class="instructions">Need extra practice on a specific skill? Submit a request and your teacher will assign you a custom practice set.</p>
+
+            <div style="max-width:500px;">
+                <div style="margin-bottom:0.75rem;">
+                    <label class="admin-label">What skill do you need help with?</label>
+                    <input type="text" id="help-skill" class="text-input" placeholder="e.g. dividing fractions, solving equations..." autocomplete="off">
+                </div>
+                <div style="margin-bottom:0.75rem;">
+                    <label class="admin-label">What are you struggling with? (optional)</label>
+                    <textarea id="help-details" class="text-input" style="min-height:60px;resize:vertical;" placeholder="e.g. I don't understand how to flip the fraction when dividing..."></textarea>
+                </div>
+                <div id="help-status" style="display:none;padding:0.5rem;border-radius:8px;font-size:0.85rem;margin-bottom:0.5rem;"></div>
+                <button class="btn" onclick="submitHelpRequest()">Submit Request</button>
+            </div>
+
+            <div style="margin-top:1.5rem;">
+                <h3 style="font-size:0.95rem;color:var(--primary-color);margin-bottom:0.5rem;">Your Requests</h3>
+                <div id="my-help-requests"><p style="color:var(--text-secondary);font-size:0.85rem;">No requests submitted yet.</p></div>
+            </div>
+        </div>
+
+        <div id="view-settings" class="panel hidden">
+            <h2>Profile & Settings</h2>
+
+            <div style="background:var(--bg-surface, #f8f9fa);border-radius:8px;padding:1.25rem;margin-bottom:1.5rem;border:1px solid var(--border-color);">
+                <h3 style="margin:0 0 0.75rem;font-size:1rem;color:var(--primary-color);">My Profile</h3>
+                <div style="display:grid;grid-template-columns:auto 1fr;gap:0.4rem 1rem;font-size:0.9rem;">
+                    <span style="font-weight:600;color:var(--text-secondary);">Name</span>
+                    <span id="settings-profile-name">—</span>
+                    <span style="font-weight:600;color:var(--text-secondary);">Grade</span>
+                    <span id="settings-profile-grade">—</span>
+                    <span style="font-weight:600;color:var(--text-secondary);">Classes</span>
+                    <span id="settings-profile-class">—</span>
+                    <span style="font-weight:600;color:var(--text-secondary);">Parent Email</span>
+                    <span id="settings-profile-email">—</span>
+                    <span style="font-weight:600;color:var(--text-secondary);">Parent Phone</span>
+                    <span id="settings-profile-phone">—</span>
+                    <span style="font-weight:600;color:var(--text-secondary);">Parent Code</span>
+                    <span id="settings-profile-parent-code" style="font-family:monospace;font-size:1.1rem;letter-spacing:1px;background:var(--bg-highlight);padding:0.15rem 0.5rem;border-radius:6px;">—</span>
+                </div>
+                <div style="margin-top:1rem;" id="join-class-section">
+                    <h4 style="font-size:0.9rem;margin-bottom:0.5rem;">Join Another Class</h4>
+                    <div style="display:flex;gap:0.5rem;align-items:center;">
+                        <select id="join-class-select" class="text-input" style="width:auto;margin-bottom:0;font-size:0.85rem;">
+                            <option value="">Select class...</option>
+                        </select>
+                        <input type="text" id="join-class-code" class="text-input" placeholder="Class code..." style="width:120px;margin-bottom:0;font-size:0.85rem;">
+                        <button class="btn" style="padding:0.3rem 0.7rem;font-size:0.85rem;" onclick="joinAdditionalClass()">Join</button>
+                    </div>
+                    <div id="join-class-status" style="display:none;margin-top:0.4rem;font-size:0.85rem;"></div>
+                </div>
+            </div>
+
+            <h3 style="margin:0 0 0.5rem;font-size:1rem;">Test Settings</h3>
+            <p class="instructions">Customize how tests look and feel. These settings are saved to your device.</p>
+            <div class="settings-list">
+                <label class="settings-item">
+                    <input type="checkbox" id="setting-question-map" onchange="saveTestSettings()">
+                    <div>
+                        <strong>Question Map</strong>
+                        <span class="settings-desc">Show numbered question buttons at the bottom of the test so you can jump between questions.</span>
+                    </div>
+                </label>
+                <label class="settings-item">
+                    <input type="checkbox" id="setting-progress-bar" onchange="saveTestSettings()">
+                    <div>
+                        <strong>Progress Bar</strong>
+                        <span class="settings-desc">Show a progress bar with percentage at the top of the test that fills as you answer questions.</span>
+                    </div>
+                </label>
+                <label class="settings-item">
+                    <input type="checkbox" id="setting-nav-buttons" checked onchange="saveTestSettings()">
+                    <div>
+                        <strong>Navigation Buttons</strong>
+                        <span class="settings-desc">Show Prev, Skip, and Next buttons during the test. Disable for a simpler sequential experience.</span>
+                    </div>
+                </label>
+                <label class="settings-item">
+                    <input type="checkbox" id="setting-flag-button" checked onchange="saveTestSettings()">
+                    <div>
+                        <strong>Flag for Review</strong>
+                        <span class="settings-desc">Show a flag button to mark questions you want to come back to before submitting.</span>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <div id="view-admin" class="panel hidden" style="border-top-color: var(--primary-color);">
+            <div class="admin-dashboard-grid">
+
+            <div class="admin-section full-width">
+                <h2 style="margin-bottom:0.25rem;">Admin Dashboard</h2>
+                <p class="instructions" style="margin-bottom:0;">Manage tests, assignments, and student scores.</p>
+            </div>
+
+            <div class="admin-section full-width">
+                <h3 class="admin-section-title">Custom Test Creator</h3>
+                <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:0.5rem;">Paste multiple-choice problems with A) B) C) D) options. Put an <strong>ANSWERS</strong> section at the bottom listing the correct letter for each question. Optionally add a <strong>HINTS</strong> section too.</p>
+                <details class="format-hint-dropdown">
+                    <summary class="format-hint-toggle">Formatting Guide</summary>
+                    <div class="format-hint">
+                        <strong>Expected format:</strong><br>
+                        Question text here...<br>
+                        A) first option&nbsp;&nbsp;B) second option&nbsp;&nbsp;C) third option&nbsp;&nbsp;D) fourth option<br><br>
+                        (repeat for all questions, then:)<br><br>
+                        <strong>ANSWERS</strong><br>
+                        B<br>A<br>C<br>...one letter per line<br><br>
+                        <strong>HINTS</strong> (optional)<br>
+                        Think about multiplication...<br>Remember the order of operations...<br>...one hint per question
+                    </div>
+                </details>
+
+                <div class="admin-form-row" style="margin-top:1rem;">
+                    <label class="admin-label">Paste Your Problems</label>
+                    <textarea id="custom-problems-input" class="custom-textarea" placeholder="Paste problems here. Each question needs A) B) C) D) answer choices.&#10;Put an ANSWERS section at the very bottom with one letter per line.&#10;&#10;Example:&#10;&#10;What is 15 × 8?&#10;A) 100&#10;B) 120&#10;C) 130&#10;D) 140&#10;&#10;ANSWERS&#10;B"></textarea>
+                </div>
+
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.75rem;margin-bottom:1.25rem;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="custom-dynamic-mode">
+                        Make Dynamic
+                    </label>
+                    <button class="btn" onclick="processCustomProblems()">Process Questions</button>
+                    <span id="custom-process-status" class="process-status"></span>
+                </div>
+
+                <div id="custom-preview"></div>
+
+                <div id="custom-save-section" class="hidden">
+                    <div style="border-top:1px solid var(--border-color);padding-top:1.25rem;margin-top:0.5rem;">
+                        <div class="admin-form">
+                            <div class="admin-form-row">
+                                <label class="admin-label">Test Name</label>
+                                <input type="text" id="custom-test-name" class="text-input" placeholder="e.g. Chapter 4 Review">
+                            </div>
+                            <div class="admin-form-row">
+                                <label class="admin-label">Assign By</label>
+                                <select id="custom-assign-by" class="text-input" onchange="updateCustomAssignOptions()">
+                                    <option value="grade">Grade</option>
+                                    <option value="class">Class</option>
+                                </select>
+                            </div>
+                            <div id="custom-assign-grade-row" class="admin-form-row">
+                                <label class="admin-label">Target Grade</label>
+                                <select id="custom-target-grade" class="text-input">
+                                    <option value="3">Grade 3</option>
+                                    <option value="4">Grade 4</option>
+                                    <option value="5">Grade 5</option>
+                                    <option value="6">Grade 6</option>
+                                    <option value="7">Grade 7</option>
+                                    <option value="8">Grade 8</option>
+                                </select>
+                            </div>
+                            <div id="custom-assign-class-row" class="admin-form-row hidden">
+                                <label class="admin-label">Target Class</label>
+                                <select id="custom-target-class" class="text-input">
+                                    <option value="3">3</option>
+                                    <option value="4/5">4/5</option>
+                                    <option value="5/6">5/6</option>
+                                    <option value="6">6</option>
+                                    <option value="6/7">6/7</option>
+                                    <option value="7/8">7/8</option>
+                                    <option value="alg1">Alg 1</option>
+                                    <option value="adv-alg1">Adv Alg 1</option>
+                                    <option value="alg2">Alg 2</option>
+                                    <option value="alg2-geo">Alg 2/Geo</option>
+                                    <option value="precalc">Precalc</option>
+                                    <option value="math-analysis">Math Analysis</option>
+                                </select>
+                            </div>
+                            <div class="admin-form-row">
+                                <label class="admin-label">Options</label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="custom-redemption" checked>
+                                    Include redemption questions for wrong answers
+                                </label>
+                            </div>
+                            <button class="btn" onclick="saveCustomTest()">Save &amp; Assign Test</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-section">
+                <h3 class="admin-section-title">Assign Test</h3>
+                <div class="admin-form">
+                    <div class="admin-form-row">
+                        <label class="admin-label">Assign By</label>
+                        <select id="admin-assign-by" class="text-input" onchange="updateAssignByOptions()">
+                            <option value="grade">Grade</option>
+                            <option value="class">Class</option>
+                            <option value="student">Individual Student</option>
+                        </select>
+                    </div>
+                    <div id="admin-assign-student-row" class="admin-form-row hidden">
+                        <label class="admin-label">Search Student</label>
+                        <input type="text" id="admin-target-student" class="text-input" placeholder="Type student name..." autocomplete="off" oninput="searchStudentForAssign(this.value, 'admin-student-results')">
+                        <div id="admin-student-results" style="max-height:150px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px;margin-top:0.25rem;display:none;"></div>
+                    </div>
+                    <div id="admin-assign-grade-row" class="admin-form-row">
+                        <label class="admin-label">Target Grade</label>
+                        <select id="admin-target-grade" class="text-input">
+                            <option value="3">Grade 3</option>
+                            <option value="4">Grade 4</option>
+                            <option value="5">Grade 5</option>
+                            <option value="6">Grade 6</option>
+                            <option value="7">Grade 7</option>
+                            <option value="8">Grade 8</option>
+                        </select>
+                    </div>
+                    <div id="admin-assign-class-row" class="admin-form-row hidden">
+                        <label class="admin-label">Target Class</label>
+                        <select id="admin-target-class" class="text-input">
+                            <option value="3">3</option>
+                            <option value="4/5">4/5</option>
+                            <option value="5/6">5/6</option>
+                            <option value="6">6</option>
+                            <option value="6/7">6/7</option>
+                            <option value="7/8">7/8</option>
+                            <option value="alg1">Alg 1</option>
+                            <option value="adv-alg1">Adv Alg 1</option>
+                            <option value="alg2">Alg 2</option>
+                            <option value="alg2-geo">Alg 2/Geo</option>
+                            <option value="precalc">Precalc</option>
+                            <option value="math-analysis">Math Analysis</option>
+                        </select>
+                    </div>
+                    <div class="admin-form-row">
+                        <label class="admin-label">Test Type</label>
+                        <select id="admin-test-type" class="text-input" onchange="updateAdminTestOptions()">
+                            <option value="pssa">PSSA</option>
+                            <option value="keystone">Keystone</option>
+                        </select>
+                    </div>
+                    <div id="admin-pssa-options" class="admin-form-row">
+                        <label class="admin-label">PSSA Grade</label>
+                        <select id="admin-grade" class="text-input">
+                            <option value="3">Grade 3</option>
+                            <option value="4">Grade 4</option>
+                            <option value="5">Grade 5</option>
+                            <option value="6">Grade 6</option>
+                            <option value="7">Grade 7</option>
+                            <option value="8">Grade 8</option>
+                        </select>
+                    </div>
+                    <div id="admin-keystone-options" class="admin-form-row hidden">
+                        <label class="admin-label">Subject</label>
+                        <select id="admin-subject" class="text-input">
+                            <option value="algebra">Algebra I</option>
+                        </select>
+                    </div>
+                    <div class="admin-form-row">
+                        <label class="admin-label">Test Name (optional)</label>
+                        <input type="text" id="admin-test-name" class="text-input" placeholder="e.g. Week 5 Quiz" style="margin-bottom:0;">
+                    </div>
+                    <div class="admin-form-row">
+                        <label class="admin-label">Due Date</label>
+                        <input type="date" id="admin-due-date" class="text-input">
+                    </div>
+                    <div class="admin-form-row">
+                        <label class="admin-label">Time Limit (optional)</label>
+                        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
+                            <input type="number" id="admin-timer-minutes" class="text-input" placeholder="Minutes" min="1" max="180" style="max-width:100px;margin-bottom:0;">
+                            <span style="color:var(--text-secondary);font-size:0.85rem;">minutes (leave blank for untimed)</span>
+                        </div>
+                    </div>
+                    <div class="admin-form-row">
+                        <label class="admin-label">Options</label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="admin-redemption" checked>
+                            Include redemption questions for wrong answers
+                        </label>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+                        <button class="btn" onclick="assignTest()">Assign Test</button>
+                        <button class="btn" onclick="previewTest()" style="background:var(--bg-surface);color:var(--primary-color);border:1px solid var(--primary-color);">Preview</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-section">
+                <h3 class="admin-section-title">Current Assignments</h3>
+                <div id="admin-assignments-list">
+                    <p style="color: var(--text-secondary);">No tests assigned yet.</p>
+                </div>
+            </div>
+
+            <div class="admin-section full-width">
+                <details open>
+                    <summary class="admin-section-title" style="cursor:pointer;">Student Scores</summary>
+                    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.75rem;">
+                        <button class="btn" style="padding:0.3rem 0.7rem;font-size:0.75rem;" onclick="exportScoresCSV()">Export CSV</button>
+                        <button class="btn" style="padding:0.3rem 0.7rem;font-size:0.75rem;background:var(--incorrect);" onclick="clearAllScores()">Clear All</button>
+                    </div>
+                    <div id="admin-scores-list" style="margin-top:0.75rem;">
+                        <p style="color: var(--text-secondary);">No scores recorded yet.</p>
+                    </div>
+                </details>
+            </div>
+
+            <div class="admin-section full-width">
+                <details>
+                    <summary class="admin-section-title" style="cursor:pointer;">Common Misconceptions <span id="misconceptions-badge" class="section-badge" style="display:none;"></span></summary>
+                    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0.75rem 0;">Skills where 50%+ of students in a class answered incorrectly.</p>
+                    <div id="admin-misconceptions-list">
+                        <p style="color: var(--text-secondary);">No data available yet.</p>
+                    </div>
+                </details>
+            </div>
+
+            <div class="admin-section full-width">
+                <details>
+                    <summary class="admin-section-title" style="cursor:pointer;">Class Codes</summary>
+                    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0.75rem 0;">Set a join code for each class. Students need this code to request access.</p>
+                    <div id="admin-class-codes"></div>
+                </details>
+            </div>
+
+            <div class="admin-section full-width">
+                <details>
+                    <summary class="admin-section-title" style="cursor:pointer;">Pending Approvals <span id="pending-badge" class="section-badge" style="display:none;"></span></summary>
+                    <div id="admin-pending-list" style="margin-top:0.75rem;">
+                        <p style="color: var(--text-secondary);">No pending requests.</p>
+                    </div>
+                </details>
+            </div>
+
+            <div class="admin-section full-width">
+                <details>
+                    <summary class="admin-section-title" style="cursor:pointer;">Student Roster</summary>
+                    <div id="admin-roster-list" style="margin-top:0.75rem;">
+                        <p style="color: var(--text-secondary);">No approved students yet.</p>
+                    </div>
+                </details>
+            </div>
+
+            </div><!-- end admin-dashboard-grid -->
+
+            <div style="margin-top: 1.25rem; text-align: center;">
+                <button class="btn" onclick="safelyCloseSession()" style="background: var(--incorrect);">Exit Dashboard</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="warning-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h3>Focus Violation Detected</h3>
+            <p>You have clicked away from the active testing environment. The assessment has been paused. Repeated violations will result in termination of your session.</p>
+            <p><strong style="color:var(--incorrect);">Warnings Remaining: <span id="warnings-left"></span></strong></p>
+            <button class="btn" onclick="resumeTest()">Acknowledge & Resume</button>
+        </div>
+    </div>
+
+    <!-- App Modal -->
+    <!-- Test Preview Modal -->
+    <div id="preview-modal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:700px;text-align:left;max-height:80vh;overflow-y:auto;">
+            <h3 id="preview-title" style="color:var(--primary-color);"></h3>
+            <div id="preview-content"></div>
+            <div class="modal-actions">
+                <button class="btn" onclick="document.getElementById('preview-modal').classList.add('hidden')">Close Preview</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-modal" class="modal-overlay hidden">
+        <div class="modal-box" id="app-modal-box">
+            <h3 id="app-modal-title"></h3>
+            <p id="app-modal-message"></p>
+            <div class="modal-actions" id="app-modal-actions"></div>
+        </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-modal hidden">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <div class="loading-title" id="loading-title">Loading...</div>
+            <div class="loading-message" id="loading-message"></div>
+            <div class="loading-progress"><div class="progress-bar" id="loading-bar"></div></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="js/templates.js?v=20260411e"></script>
+    <script src="js/extra-templates.js?v=20260411e"></script>
+    <script src="js/dynamic-gen.js?v=20260411e"></script>
+    <script src="js/utils.js?v=20260411e"></script>
+    <script src="js/pssa-patterns.js?v=20260411e"></script>
+    <script src="js/ai-generator.js?v=20260411e"></script>
+    <script src="js/app.js?v=20260411e"></script>
+</body>
+</html>
