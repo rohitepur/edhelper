@@ -147,7 +147,7 @@
 <div class="tb-header">
     <div style="display:flex;align-items:center;gap:1rem;">
         <h1>Test Builder</h1>
-        <a href="question-bank.html" target="_blank" style="color:rgba(255,255,255,0.85);font-size:0.78rem;text-decoration:none;padding:0.2rem 0.5rem;border:1px solid rgba(255,255,255,0.4);border-radius:5px;">Question Bank →</a>
+        <a href="/admin/question-bank.html" target="_blank" style="color:rgba(255,255,255,0.85);font-size:0.78rem;text-decoration:none;padding:0.2rem 0.5rem;border:1px solid rgba(255,255,255,0.4);border-radius:5px;">Question Bank →</a>
         <a href="index.html" style="color:rgba(255,255,255,0.75);font-size:0.75rem;text-decoration:none;">← Admin</a>
     </div>
     <div class="tb-header-btns">
@@ -1015,7 +1015,7 @@ function tbRenderSavedSkills() {
         return haystack.includes(search);
     });
     if (!skills.length) {
-        list.innerHTML = '<div class="tb-empty" style="padding:1rem;">No saved templates. <a href="question-bank.html" target="_blank" style="color:var(--primary-color);">Open Question Bank →</a></div>';
+        list.innerHTML = '<div class="tb-empty" style="padding:1rem;">No saved templates. <a href="/admin/question-bank.html" target="_blank" style="color:var(--primary-color);">Open Question Bank →</a></div>';
         return;
     }
     const gradeLabel = g => g === 'algebra1' ? 'Alg1' : 'G' + g;

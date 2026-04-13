@@ -41,8 +41,8 @@
             <button class="sidebar-item" onclick="switchAdminPage('roster', this)">Roster</button>
             <button class="sidebar-item" onclick="switchAdminPage('parents', this)">Parents</button>
             <button class="sidebar-item" onclick="switchAdminPage('manual-score', this)">Upload Score</button>
-            <button class="sidebar-item" onclick="window.open('question-bank.html','_blank')">Question Bank ↗</button>
-            <button class="sidebar-item" onclick="window.open('test-builder.html','_blank')">Test Builder ↗</button>
+            <button class="sidebar-item" onclick="window.open('/admin/question-bank.html','_blank')">Question Bank ↗</button>
+            <button class="sidebar-item" onclick="window.open('/admin/test-builder.html','_blank')">Test Builder ↗</button>
         </div>
         <div class="sidebar-bottom">
             <button class="sidebar-item" onclick="toggleTheme()" id="theme-toggle">Dark Mode</button>
@@ -268,8 +268,8 @@
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem;">
                     <h3 class="admin-section-title" style="border:none;padding:0;margin:0;">Assign Custom Test</h3>
                     <div style="display:flex;gap:0.5rem;">
-                        <button class="btn" style="padding:0.3rem 0.7rem;font-size:0.78rem;" onclick="window.open('question-bank.html','_blank')">Question Bank</button>
-                        <button class="btn" style="padding:0.3rem 0.7rem;font-size:0.78rem;" onclick="window.open('test-builder.html','_blank')">Test Builder</button>
+                        <button class="btn" style="padding:0.3rem 0.7rem;font-size:0.78rem;" onclick="window.open('/admin/question-bank.html','_blank')">Question Bank</button>
+                        <button class="btn" style="padding:0.3rem 0.7rem;font-size:0.78rem;" onclick="window.open('/admin/test-builder.html','_blank')">Test Builder</button>
                     </div>
                 </div>
                 <div class="admin-form">
@@ -388,7 +388,7 @@
             <div class="admin-section full-width" id="admin-section-custom" style="text-align:center;padding:3rem 1.5rem;">
                 <h3 class="admin-section-title" style="border:none;padding:0;margin-bottom:0.75rem;">Custom Test Creator</h3>
                 <p style="color:var(--text-secondary);font-size:0.95rem;margin-bottom:1.5rem;max-width:500px;margin-left:auto;margin-right:auto;">Create custom tests by pasting problems, editing questions, adding graphs and drawings, and assigning to students.</p>
-                <button class="btn" onclick="window.open('test-builder.html','_blank')" style="padding:0.75rem 2rem;font-size:1rem;">Open Test Builder</button>
+                <button class="btn" onclick="window.open('/admin/test-builder.html','_blank')" style="padding:0.75rem 2rem;font-size:1rem;">Open Test Builder</button>
             </div>
             </div><!-- end PAGE: Custom Tests -->
 
@@ -521,8 +521,8 @@
                 <h3 class="admin-section-title">Skill Library</h3>
                 <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:1rem;">View and manage your saved question templates. To create new templates, use the <strong>Question Bank</strong>.</p>
                 <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;flex-wrap:wrap;">
-                    <button class="btn" onclick="window.open('question-bank.html','_blank')">Open Question Bank</button>
-                    <button class="btn" style="background:var(--bg-surface);color:var(--primary-color);border:1px solid var(--primary-color);" onclick="window.open('test-builder.html','_blank')">Open Test Builder</button>
+                    <button class="btn" onclick="window.open('/admin/question-bank.html','_blank')">Open Question Bank</button>
+                    <button class="btn" style="background:var(--bg-surface);color:var(--primary-color);border:1px solid var(--primary-color);" onclick="window.open('/admin/test-builder.html','_blank')">Open Test Builder</button>
                 </div>
 
                 <!-- ─── EXISTING SKILLS LIST ─── -->
