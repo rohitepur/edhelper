@@ -48,17 +48,23 @@ Rules:
     try {
         const model = 'gemini-2.0-flash';
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-        const response = await fetch(url, {
+        const payload = {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ role: 'user', parts }],
                 generationConfig: { maxOutputTokens: 4096 }
             })
-        });
+        };
 
-        const data = await response.json();
+        let response, data;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            response = await fetch(url, payload);
+            data = await response.json();
+            if (response.ok || response.status !== 503) break;
+            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        }
+
         if (!response.ok) return res.status(response.status).json({ error: data.error?.message || 'Gemini API error' });
 
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';

@@ -1,6 +1,11 @@
 {
   "cleanUrls": false,
   "trailingSlash": false,
+  "functions": {
+    "api/claude.js": {
+      "maxDuration": 60
+    }
+  },
   "rewrites": [
     { "source": "/admin/question-bank", "destination": "/admin/question-bank.html" },
     { "source": "/admin/test-builder", "destination": "/admin/test-builder.html" }
