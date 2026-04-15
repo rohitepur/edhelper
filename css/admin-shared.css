@@ -1,0 +1,233 @@
+/* ============================================================
+   admin-shared.css
+   Shared styles for admin pages (question-bank, test-builder).
+   Relies on CSS variables defined in styles.css.
+   ============================================================ */
+
+/* ── 1. Base admin styles ─────────────────────────────────── */
+.admin-body-base { background: var(--bg-page); margin: 0; padding: 0; min-height: 100vh; }
+
+.admin-header { background: var(--primary-color); color: #fff; padding: 0.6rem 1.25rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-wrap: wrap; gap: 0.4rem; }
+.admin-header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.admin-header a { color: rgba(255,255,255,0.85); font-size: 0.8rem; text-decoration: none; }
+.admin-header a:hover { color: #fff; text-decoration: underline; }
+
+.admin-content { max-width: 1100px; margin: 0.75rem auto; padding: 0 0.75rem; }
+
+.admin-panel { background: var(--bg-panel); border: 1px solid var(--border-color-light); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 0.75rem; }
+.admin-panel-title { font-size: 0.8rem; font-weight: 700; color: var(--primary-color); text-transform: uppercase; letter-spacing: 0.3px; margin: 0 0 0.75rem; }
+
+/* ── 2. Form elements ─────────────────────────────────────── */
+.admin-label { display: block; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; margin: 0.6rem 0 0.15rem; }
+.admin-input { width: 100%; padding: 0.4rem 0.6rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-family: inherit; font-size: 0.85rem; background: var(--bg-panel); color: var(--text-main); box-sizing: border-box; }
+.admin-textarea { width: 100%; padding: 0.5rem 0.6rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-family: inherit; font-size: 0.85rem; background: var(--bg-panel); color: var(--text-main); resize: vertical; box-sizing: border-box; }
+.admin-select { padding: 0.4rem 0.6rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-family: inherit; font-size: 0.85rem; background: var(--bg-panel); color: var(--text-main); }
+
+.admin-input:focus,
+.admin-textarea:focus,
+.admin-select:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--focus-ring); }
+
+.admin-row { display: flex; gap: 0.5rem; align-items: flex-end; }
+.admin-row > * { flex: 1; }
+
+/* Buttons (supplement .btn from styles.css) */
+.admin-btn { padding: 0.35rem 0.7rem; font-size: 0.8rem; font-weight: 600; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-panel); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.admin-btn:hover { background: var(--bg-highlight); color: var(--primary-color); border-color: var(--primary-color); }
+.admin-btn.del:hover { background: var(--incorrect-bg); color: var(--incorrect); border-color: var(--incorrect); }
+.admin-btn-sm { padding: 0.15rem 0.4rem; font-size: 0.68rem; }
+
+/* ── 3. Tab system ────────────────────────────────────────── */
+.admin-tabs { display: flex; border-bottom: 2px solid var(--border-color-light); margin: -1rem -1rem 0.75rem; }
+.admin-tab { flex: 1; padding: 0.5rem 0.5rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; border: none; background: none; cursor: pointer; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.15s, border-color 0.15s; }
+.admin-tab:hover { color: var(--primary-color); }
+.admin-tab.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+.admin-tab-content { display: none; }
+.admin-tab-content.active { display: block; }
+
+/* ── 4. Question cards ────────────────────────────────────── */
+.admin-q-list { margin-top: 0.75rem; }
+.admin-q-card { border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); margin-bottom: 0.5rem; overflow: hidden; }
+.admin-q-card-head { display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0.65rem; background: var(--bg-surface); border-bottom: 1px solid var(--border-color-light); font-size: 0.78rem; font-weight: 600; }
+.admin-q-card-body { padding: 0.6rem 0.75rem; font-size: 0.88rem; }
+.admin-q-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.2rem; margin-top: 0.4rem; }
+.admin-q-opt { padding: 0.25rem 0.5rem; border: 1px solid var(--border-color-light); border-radius: 4px; font-size: 0.8rem; }
+.admin-q-opt.correct { border-color: var(--correct); background: var(--correct-bg); font-weight: 600; }
+.admin-q-del { background: none; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.1rem 0.4rem; cursor: pointer; font-size: 0.68rem; color: var(--incorrect); }
+.admin-q-del:hover { background: var(--incorrect-bg); border-color: var(--incorrect); }
+
+/* Options grid (form editing) */
+.admin-opts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-bottom: 0.4rem; }
+.admin-opt-row { display: flex; align-items: center; gap: 0.4rem; }
+.admin-opt-row input[type="radio"] { flex-shrink: 0; width: 14px; height: 14px; accent-color: var(--correct); }
+.admin-opt-row input[type="text"] { flex: 1; padding: 0.35rem 0.5rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-size: 0.82rem; font-family: inherit; background: var(--bg-panel); color: var(--text-main); }
+.admin-opt-lbl { font-weight: 700; font-size: 0.82rem; min-width: 18px; color: var(--text-secondary); }
+
+/* ── 5. Skill cards ───────────────────────────────────────── */
+.admin-skill-card { border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); margin-bottom: 0.5rem; overflow: hidden; }
+.admin-skill-head { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; cursor: pointer; transition: background 0.1s; }
+.admin-skill-head:hover { background: var(--bg-highlight); }
+.admin-skill-name { font-weight: 600; font-size: 0.88rem; color: var(--text-main); }
+.admin-skill-meta { font-size: 0.68rem; color: var(--text-secondary); margin-top: 0.1rem; }
+.admin-skill-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+.admin-skill-body { padding: 0.6rem 0.75rem; display: none; background: var(--bg-surface); border-top: 1px solid var(--border-color-light); font-size: 0.82rem; }
+.admin-skill-body.open { display: block; }
+
+/* ── 6. Badges ────────────────────────────────────────────── */
+.admin-badge { font-size: 0.62rem; padding: 0.1rem 0.35rem; border-radius: 99px; font-weight: 600; background: var(--bg-surface); color: var(--text-secondary); border: 1px solid var(--border-color); margin-right: 0.25rem; }
+.admin-badge.grade { background: var(--primary-light); color: var(--primary-color); border-color: var(--primary-color); }
+.admin-badge.cat { background: var(--bg-surface); }
+.admin-badge.dynamic { background: var(--primary-light); color: var(--primary-color); }
+.admin-badge.static { background: var(--bg-surface); color: var(--text-secondary); border: 1px solid var(--border-color); }
+
+/* ── 7. Modal system ──────────────────────────────────────── */
+.admin-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: none; align-items: center; justify-content: center; }
+.admin-modal.active { display: flex; }
+.admin-modal-inner { background: var(--bg-panel); border-radius: var(--radius-md); padding: 1.25rem; max-width: 600px; width: 95%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.admin-modal-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-main); }
+
+/* ── 8. Drop zones ────────────────────────────────────────── */
+.admin-drop { border: 2px dashed var(--border-color); border-radius: var(--radius-sm); padding: 1rem; text-align: center; cursor: pointer; font-size: 0.82rem; color: var(--text-secondary); transition: border-color 0.15s; margin-bottom: 0.4rem; }
+.admin-drop:hover,
+.admin-drop.over { border-color: var(--primary-color); color: var(--primary-color); }
+
+/* ── 9. Math toolbar ──────────────────────────────────────── */
+.admin-math-bar { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.4rem; padding: 0.4rem; background: var(--bg-surface); border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); }
+.admin-sym { padding: 0.2rem 0.45rem; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: 5px; background: var(--bg-panel); cursor: pointer; color: var(--text-main); transition: background 0.1s; min-width: 28px; text-align: center; }
+.admin-sym:hover { background: var(--primary-light); border-color: var(--primary-color); color: var(--primary-color); }
+
+/* ── 10. Status messages ──────────────────────────────────── */
+.admin-status { font-size: 0.8rem; margin-top: 0.4rem; display: block; min-height: 1rem; }
+.admin-status.ok { color: var(--correct); }
+.admin-status.err { color: var(--incorrect); }
+
+/* ── 11. Filter row ───────────────────────────────────────── */
+.admin-filter-row { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.75rem; align-items: center; }
+.admin-filter-row select,
+.admin-filter-row input { padding: 0.35rem 0.5rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-size: 0.82rem; font-family: inherit; background: var(--bg-panel); color: var(--text-main); }
+
+/* ── 12. Variable editor (v2 — template-based) ──────────── */
+.ve-container { margin-top: 0.5rem; }
+
+/* Template section */
+.ve-template-section { margin-bottom: 0.5rem; }
+.ve-tpl-field { margin-bottom: 0.35rem; }
+.ve-tpl-label { display: block; font-size: 0.68rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 0.15rem; }
+.ve-tpl-input { width: 100%; padding: 0.4rem 0.6rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-family: 'Menlo', 'Consolas', monospace; font-size: 0.82rem; background: var(--bg-panel); color: var(--text-main); resize: none; overflow: hidden; box-sizing: border-box; line-height: 1.5; }
+.ve-tpl-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--focus-ring); }
+.ve-tpl-input::placeholder { font-family: inherit; color: var(--text-secondary); opacity: 0.6; }
+
+/* Template preview with highlighted variables */
+.ve-template-preview { padding: 0.5rem 0.65rem; border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); background: var(--bg-surface); font-size: 0.85rem; line-height: 1.6; min-height: 1.5rem; margin-bottom: 0.5rem; }
+.ve-var-highlight { display: inline; padding: 0.1rem 0.35rem; margin: 0 0.05rem; font-size: 0.8rem; font-weight: 700; color: var(--primary-color); background: var(--primary-light); border: 1px solid var(--primary-color); border-radius: var(--radius-sm); font-family: 'Menlo', 'Consolas', monospace; }
+.ve-empty-hint { color: var(--text-secondary); font-style: italic; font-size: 0.82rem; }
+
+/* Toolbar */
+.ve-toolbar { display: flex; gap: 0.35rem; margin-bottom: 0.6rem; align-items: center; flex-wrap: wrap; }
+.ve-btn { padding: 0.25rem 0.6rem; font-size: 0.72rem; font-weight: 600; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.ve-btn:hover { border-color: var(--primary-color); color: var(--primary-color); }
+
+/* Variable cards section */
+.ve-vars-section { margin-bottom: 0.6rem; }
+.ve-vars-title { font-size: 0.72rem; font-weight: 700; color: var(--primary-color); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 0.4rem; }
+
+.ve-var-card { border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); margin-bottom: 0.4rem; overflow: hidden; background: var(--bg-panel); }
+.ve-var-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; background: var(--bg-surface); border-bottom: 1px solid var(--border-color-light); }
+.ve-var-name { font-weight: 700; font-size: 0.82rem; color: var(--primary-color); font-family: 'Menlo', 'Consolas', monospace; }
+.ve-var-del { margin-left: auto; background: none; border: none; font-size: 1.1rem; cursor: pointer; color: var(--text-secondary); padding: 0 0.3rem; line-height: 1; }
+.ve-var-del:hover { color: var(--incorrect); }
+
+/* Kind toggle (Value / Operator) */
+.ve-kind-toggle { display: flex; border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; }
+.ve-kind-btn { padding: 0.15rem 0.5rem; font-size: 0.7rem; font-weight: 600; border: none; background: var(--bg-panel); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.ve-kind-btn:first-child { border-right: 1px solid var(--border-color); }
+.ve-kind-btn.active { background: var(--primary-color); color: #fff; }
+.ve-kind-btn:hover:not(.active) { background: var(--bg-highlight); }
+
+/* Variable body (config area) */
+.ve-var-body { padding: 0.5rem 0.6rem; }
+.ve-config-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-end; }
+.ve-config-field { display: flex; flex-direction: column; gap: 0.1rem; min-width: 70px; }
+.ve-config-field label { font-size: 0.65rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; }
+.ve-config-input { padding: 0.3rem 0.4rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-size: 0.8rem; font-family: inherit; background: var(--bg-panel); color: var(--text-main); width: 72px; box-sizing: border-box; }
+.ve-config-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--focus-ring); }
+.ve-config-select { padding: 0.3rem 0.4rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-size: 0.8rem; font-family: inherit; background: var(--bg-panel); color: var(--text-main); }
+.ve-config-select:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--focus-ring); }
+.ve-field-label { font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.25rem; }
+.ve-helper-text { font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.2rem; font-style: italic; }
+
+/* Operator grid */
+.ve-op-grid { display: flex; gap: 0.5rem 1rem; flex-wrap: wrap; }
+.ve-op-item { display: flex; align-items: center; gap: 0.25rem; font-size: 0.82rem; cursor: pointer; user-select: none; }
+.ve-op-item input[type="checkbox"] { accent-color: var(--primary-color); }
+
+/* Word-choice input */
+.ve-choice-input { width: 100%; padding: 0.35rem 0.5rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-family: inherit; font-size: 0.82rem; background: var(--bg-panel); color: var(--text-main); resize: vertical; box-sizing: border-box; }
+
+/* Live preview section */
+.ve-live-section { border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); overflow: hidden; }
+.ve-live-title { font-size: 0.68rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; padding: 0.35rem 0.6rem; background: var(--bg-surface); border-bottom: 1px solid var(--border-color-light); }
+.ve-live-content { padding: 0.5rem 0.65rem; font-size: 0.85rem; line-height: 1.6; min-height: 2rem; }
+.ve-preview-q { margin-bottom: 0.2rem; }
+.ve-preview-ans { color: var(--correct); margin-bottom: 0.2rem; }
+.ve-preview-dist { color: var(--text-secondary); margin-bottom: 0.2rem; }
+.ve-preview-guide { color: var(--text-secondary); font-size: 0.8rem; font-style: italic; }
+.ve-error { color: var(--incorrect); }
+.ve-generate-btn { display: block; width: 100%; padding: 0.3rem; font-size: 0.75rem; font-weight: 600; border: none; border-top: 1px solid var(--border-color-light); background: var(--bg-surface); color: var(--primary-color); cursor: pointer; transition: background 0.15s; font-family: inherit; }
+.ve-generate-btn:hover { background: var(--bg-highlight); }
+
+/* Answer field */
+.ve-answer-mode { display: flex; gap: 0; margin-bottom: 0.3rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; width: fit-content; }
+.ve-mode-btn { padding: 0.2rem 0.6rem; font-size: 0.72rem; font-weight: 600; border: none; background: var(--bg-panel); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.ve-mode-btn:first-child { border-right: 1px solid var(--border-color); }
+.ve-mode-btn.active { background: var(--primary-color); color: #fff; }
+.ve-mode-btn:hover:not(.active) { background: var(--bg-highlight); }
+.ve-answer-input { width: 100%; padding: 0.4rem 0.6rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-family: 'Menlo', 'Consolas', monospace; font-size: 0.85rem; background: var(--bg-panel); color: var(--text-main); box-sizing: border-box; }
+.ve-answer-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--focus-ring); }
+
+/* Question type toggle */
+.ve-type-toggle { display: flex; gap: 0; margin-bottom: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; width: fit-content; }
+.ve-type-btn { padding: 0.3rem 0.8rem; font-size: 0.78rem; font-weight: 600; border: none; background: var(--bg-panel); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.ve-type-btn:first-child { border-right: 1px solid var(--border-color); }
+.ve-type-btn.active { background: var(--primary-color); color: #fff; }
+.ve-type-btn:hover:not(.active) { background: var(--bg-highlight); }
+
+/* Distractor config */
+.ve-distractor-section { margin-top: 0.4rem; padding: 0.5rem; border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); background: var(--bg-surface); }
+.ve-distractor-row { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; }
+.ve-distractor-row:last-child { margin-bottom: 0; }
+.ve-distractor-label { font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); min-width: 52px; flex-shrink: 0; }
+
+/* Math toolbar */
+.ve-math-bar { display: flex; flex-wrap: wrap; gap: 0.2rem; padding: 0.35rem 0.5rem; background: var(--bg-surface); border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); margin-bottom: 0.5rem; align-items: center; }
+.ve-math-btn { padding: 0.15rem 0.4rem; font-size: 0.82rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-panel); cursor: pointer; color: var(--text-main); transition: background 0.1s; min-width: 26px; text-align: center; font-family: inherit; }
+.ve-math-btn:hover { background: var(--primary-light); border-color: var(--primary-color); color: var(--primary-color); }
+.ve-math-sep { width: 1px; height: 18px; background: var(--border-color); margin: 0 0.15rem; }
+
+/* ── 13. Accordion sections ───────────────────────────────── */
+.accordion-section { border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); margin-bottom: 0.5rem; overflow: hidden; }
+.accordion-header { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; cursor: pointer; background: var(--bg-surface); font-size: 0.8rem; font-weight: 600; color: var(--text-main); transition: background 0.1s; user-select: none; }
+.accordion-header:hover { background: var(--bg-highlight); }
+.accordion-header::after { content: "\25B8"; font-size: 0.7rem; color: var(--text-secondary); transition: transform var(--transition-base); }
+.accordion-header.open::after { transform: rotate(90deg); }
+.accordion-body { display: none; padding: 0.6rem 0.75rem; border-top: 1px solid var(--border-color-light); font-size: 0.82rem; }
+.accordion-body.open { display: block; }
+
+/* ── 14. Loading spinner ──────────────────────────────────── */
+.admin-loading { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border-color); border-top-color: var(--primary-color); border-radius: 50%; animation: admin-spin 0.6s linear infinite; vertical-align: middle; margin-right: 0.3rem; }
+@keyframes admin-spin { to { transform: rotate(360deg); } }
+
+/* ── 15. Responsive breakpoints ───────────────────────────── */
+@media (max-width: 900px) {
+    .admin-content { padding: 0 0.5rem; }
+    .admin-opts-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+    .admin-q-opts { grid-template-columns: 1fr; }
+    .admin-opts-grid { grid-template-columns: 1fr; }
+    .admin-header { padding: 0.5rem 0.75rem; }
+    .admin-header h1 { font-size: 0.95rem; }
+    .admin-filter-row { flex-direction: column; align-items: stretch; }
+}
+
+/* ── 16. Empty state ──────────────────────────────────────── */
+.admin-empty { text-align: center; padding: 2rem 1rem; color: var(--text-secondary); font-size: 0.9rem; }

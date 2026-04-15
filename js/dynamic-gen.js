@@ -217,6 +217,9 @@ function generateSlotValues(descriptor) {
 // ========== REHYDRATE (arithmetic) ==========
 
 function rehydrate(descriptor) {
+    if (descriptor.operation && descriptor.operation.type === 'user-defined') {
+        return rehydrateUserDefined(descriptor);
+    }
     if (descriptor.operation && descriptor.operation.type === 'cosmetic') {
         return rehydrateCosmetic(descriptor);
     }
@@ -431,5 +434,419 @@ function rehydrateCosmetic(descriptor) {
 
             return { q, ans, distractors: distractors.slice(0, 3), guide: `The correct answer is: ${ans}` };
         }
+    };
+}
+
+// ========== USER-DEFINED VARIABLE SUPPORT ==========
+
+/**
+ * Shared template filler: replace {N} placeholders with formatted values.
+ */
+function fillUserTemplate(template, vals, slots) {
+    return template.replace(/\{(\d+)\}/g, function(match, idx) {
+        var i = parseInt(idx);
+        if (i >= slots.length || vals[i] === undefined) return match;
+        var slot = slots[i];
+        var v = vals[i];
+        return formatUserSlotValue(v, slot);
+    });
+}
+
+/**
+ * Format a value according to its slot type.
+ */
+function formatUserSlotValue(value, slot) {
+    // Operator variables: format symbols for display
+    if (slot.kind === 'operator' || (slot.operators && slot.operators.length)) {
+        var opMap = { '+': '+', '-': '\u2212', '*': '\u00d7', '/': '\u00f7' };
+        return opMap[value] || String(value);
+    }
+    switch (slot.type) {
+        case 'integer':
+            return Math.round(value).toString();
+        case 'decimal': {
+            var places = inferDecimalPlaces(slot.original);
+            return Number(value).toFixed(places);
+        }
+        case 'currency':
+            return '$' + Number(value).toFixed(2);
+        case 'percent':
+            return Math.round(value) + '%';
+        case 'word-choice':
+            return String(value);
+        case 'fraction':
+            return String(value);
+        case 'computed': {
+            // Infer formatting from the computed result
+            if (typeof value === 'string') return value;
+            if (Number.isFinite(value)) {
+                if (Number.isInteger(value)) return value.toString();
+                return parseFloat(value.toFixed(4)).toString();
+            }
+            return String(value);
+        }
+        default:
+            return String(value);
+    }
+}
+
+/**
+ * Infer decimal places from an original value string.
+ */
+function inferDecimalPlaces(original) {
+    var str = String(original);
+    if (str.includes('.')) {
+        return str.split('.')[1].length;
+    }
+    return 2;
+}
+
+/**
+ * Validate a computed expression to ensure it only contains safe characters.
+ */
+/**
+ * Validate a computed expression. Allows:
+ * - vals[N], numbers, basic operators (+, -, *, /, %, .)
+ * - Math functions: sin, cos, tan, abs, sqrt, pow, round, floor, ceil, log, min, max
+ * - Math constants: PI, E, LN2, SQRT2
+ * - Parentheses, commas, spaces
+ */
+function _isSafeExpr(expr) {
+    // Strip allowed tokens and see if anything remains
+    var stripped = expr
+        .replace(/vals\[\d+\]/g, '')          // vals[0], vals[1]...
+        .replace(/Math\.(sin|cos|tan|asin|acos|atan|atan2|abs|sqrt|cbrt|pow|round|floor|ceil|log|log2|log10|min|max|sign|trunc|PI|E|LN2|LN10|SQRT2|SQRT1_2)/g, '')
+        .replace(/[0-9+\-*/().,%\s]/g, '');
+    return stripped.length === 0;
+}
+
+function isValidExpression(expr) {
+    return _isSafeExpr(expr);
+}
+
+/**
+ * Generate a random value for a user-defined slot.
+ */
+function generateUserSlotValue(slot) {
+    // Operator variables: pick a random operator from the allowed set
+    if (slot.kind === 'operator' || (slot.operators && slot.operators.length)) {
+        var ops = slot.operators || ['+', '-', '*', '/'];
+        return ops[rand(0, ops.length - 1)];
+    }
+    switch (slot.type) {
+        case 'integer':
+            return rand(slot.min, slot.max);
+        case 'decimal': {
+            var places = inferDecimalPlaces(slot.original);
+            var scale = Math.pow(10, places);
+            var min = Math.round(slot.min * scale);
+            var max = Math.round(slot.max * scale);
+            return rand(min, max) / scale;
+        }
+        case 'fraction': {
+            // Generate random fraction similar to randomizeToken logic
+            var origStr = String(slot.original);
+            if (/^\d+\s+\d+\/\d+$/.test(origStr)) {
+                // Mixed number
+                var parts = origStr.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+                var whole = parseInt(parts[1]), d = parseInt(parts[3]);
+                var newWhole = rand(Math.max(1, whole - 3), whole + 3);
+                var newN = rand(1, d - 1);
+                return newWhole + ' ' + newN + '/' + d;
+            } else if (/^\d+\/\d+$/.test(origStr)) {
+                var fracParts = origStr.split('/').map(Number);
+                var newD = rand(Math.max(2, fracParts[1] - 2), fracParts[1] + 2);
+                var newNum = rand(1, newD - 1);
+                return newNum + '/' + newD;
+            }
+            return slot.original;
+        }
+        case 'currency': {
+            var cMin = Math.round(slot.min * 100);
+            var cMax = Math.round(slot.max * 100);
+            return rand(cMin, cMax) / 100;
+        }
+        case 'percent':
+            return rand(slot.min, slot.max);
+        case 'word-choice':
+            return choose(slot.choices);
+        default:
+            return slot.original;
+    }
+}
+
+/**
+ * Rehydrate a user-defined variable descriptor into a template-compatible object.
+ */
+function rehydrateUserDefined(descriptor) {
+    return {
+        type: 'dynamic-user', anchor: 'Dynamic question (user-defined)', openEnded: false,
+        gen: function() {
+            var slots = descriptor.slots;
+            var vals = new Array(slots.length);
+
+            // Pass 1: generate random values for non-computed slots (values + operators)
+            for (var i = 0; i < slots.length; i++) {
+                if (slots[i].type !== 'computed') {
+                    vals[i] = generateUserSlotValue(slots[i]);
+                }
+            }
+
+            // Pass 2: evaluate computed slots using their expressions
+            for (var j = 0; j < slots.length; j++) {
+                if (slots[j].type === 'computed') {
+                    var expr = slots[j].expression;
+                    // Replace variable names with vals[index]
+                    var safeExpr = expr;
+                    for (var k = 0; k < slots.length; k++) {
+                        if (slots[k].name) {
+                            safeExpr = safeExpr.replace(new RegExp('\\b' + slots[k].name + '\\b', 'g'), 'vals[' + k + ']');
+                        }
+                    }
+                    if (isValidExpression(safeExpr)) {
+                        try {
+                            vals[j] = new Function('vals', 'return ' + safeExpr)(vals);
+                        } catch (e) {
+                            vals[j] = 0;
+                        }
+                    } else {
+                        vals[j] = 0;
+                    }
+                }
+            }
+
+            // Fill templates with generated values
+            var q = fillUserTemplate(descriptor.textTemplate, vals, slots);
+            var ans = fillUserTemplate(descriptor.answerTemplate, vals, slots);
+
+            var distractors = [];
+            if (descriptor.distractorTemplates) {
+                distractors = descriptor.distractorTemplates.map(function(tmpl) {
+                    return fillUserTemplate(tmpl, vals, slots);
+                });
+            }
+
+            var guide = '';
+            if (descriptor.guideTemplate) {
+                guide = fillUserTemplate(descriptor.guideTemplate, vals, slots);
+            }
+
+            return { q: q, ans: ans, distractors: distractors, guide: guide };
+        }
+    };
+}
+
+/**
+ * Auto-detect variables in a question and return a user-defined-format descriptor, or null.
+ * Wraps existing arithmetic and cosmetic heuristics into one call.
+ */
+function autoDetectVariables(text, answer, options, guide) {
+    var answerVal = parseFloat(answer);
+
+    // Step 1: Try arithmetic detection
+    var numbers = extractNumbers(text);
+    if (numbers.length >= 2 && !isNaN(answerVal)) {
+        var operation = detectOperation(numbers, answerVal);
+        if (operation) {
+            var arithDesc = buildDescriptor(text, numbers, operation, answerVal);
+            if (arithDesc) {
+                return convertArithmeticToUserDefined(arithDesc, answer, options || [], guide || '');
+            }
+        }
+    }
+
+    // Step 2: Fallback to cosmetic detection
+    var cosmeticDesc = buildCosmeticDescriptor(text, answer, options || []);
+    if (cosmeticDesc) {
+        return convertCosmeticToUserDefined(cosmeticDesc, guide || '');
+    }
+
+    // Step 3: Nothing detected
+    return null;
+}
+
+/**
+ * Convert an arithmetic descriptor into user-defined format.
+ */
+function convertArithmeticToUserDefined(arithDesc, answer, options, guide) {
+    var slots = arithDesc.slots.map(function(s) {
+        var type = 'integer';
+        if (s.isCurrency) type = 'currency';
+        else if (s.isDecimal) type = 'decimal';
+        return {
+            index: s.index,
+            type: type,
+            original: String(s.original),
+            min: s.min,
+            max: s.max
+        };
+    });
+
+    // Build expression for the computed answer slot
+    var ops = arithDesc.operation.operands;
+    var expression = '';
+    switch (arithDesc.operation.type) {
+        case 'add': expression = 'vals[' + ops[0] + '] + vals[' + ops[1] + ']'; break;
+        case 'subtract': expression = 'vals[' + ops[0] + '] - vals[' + ops[1] + ']'; break;
+        case 'multiply': expression = 'vals[' + ops[0] + '] * vals[' + ops[1] + ']'; break;
+        case 'divide': expression = 'vals[' + ops[0] + '] / vals[' + ops[1] + ']'; break;
+        case 'add3': expression = 'vals[' + ops[0] + '] + vals[' + ops[1] + '] + vals[' + ops[2] + ']'; break;
+        case 'multiply3': expression = 'vals[' + ops[0] + '] * vals[' + ops[1] + '] * vals[' + ops[2] + ']'; break;
+        case 'multiply_add': expression = 'vals[' + ops[0] + '] * vals[' + ops[1] + '] + vals[' + ops[2] + ']'; break;
+        case 'multiply_subtract': expression = 'vals[' + ops[0] + '] * vals[' + ops[1] + '] - vals[' + ops[2] + ']'; break;
+        case 'add_multiply': expression = '(vals[' + ops[0] + '] + vals[' + ops[1] + ']) * vals[' + ops[2] + ']'; break;
+        default: expression = '0';
+    }
+
+    // Answer slot
+    var answerSlotIndex = slots.length;
+    slots.push({
+        index: answerSlotIndex,
+        type: 'computed',
+        expression: expression,
+        original: answer
+    });
+
+    // Distractor slots — generate offsets from the answer
+    var distractorTemplates = [];
+    var distractorOffsets = [
+        'vals[' + ops[0] + '] + vals[' + ops[1] + ']',
+        'vals[' + answerSlotIndex + '] + vals[' + ops[0] + ']',
+        'vals[' + answerSlotIndex + '] - vals[' + ops[1] + ']'
+    ];
+    // Use simpler distractor expressions based on operation type
+    switch (arithDesc.operation.type) {
+        case 'add':
+            distractorOffsets = [
+                'vals[' + ops[0] + '] * vals[' + ops[1] + ']',
+                'vals[' + answerSlotIndex + '] + 1',
+                'Math.abs(vals[' + ops[0] + '] - vals[' + ops[1] + '])'
+            ];
+            break;
+        case 'subtract':
+            distractorOffsets = [
+                'vals[' + ops[0] + '] + vals[' + ops[1] + ']',
+                'vals[' + answerSlotIndex + '] + 1',
+                'vals[' + ops[1] + '] - vals[' + ops[0] + ']'
+            ];
+            break;
+        case 'multiply': case 'multiply3':
+            distractorOffsets = [
+                'vals[' + ops[0] + '] + vals[' + ops[1] + ']',
+                'vals[' + answerSlotIndex + '] + vals[' + ops[0] + ']',
+                'vals[' + answerSlotIndex + '] - vals[' + ops[1] + ']'
+            ];
+            break;
+        case 'divide':
+            distractorOffsets = [
+                'vals[' + ops[0] + '] * vals[' + ops[1] + ']',
+                'vals[' + ops[0] + '] - vals[' + ops[1] + ']',
+                'vals[' + answerSlotIndex + '] + 1'
+            ];
+            break;
+    }
+
+    for (var d = 0; d < 3; d++) {
+        var dSlotIndex = slots.length;
+        slots.push({
+            index: dSlotIndex,
+            type: 'computed',
+            expression: distractorOffsets[d] || ('vals[' + answerSlotIndex + '] + ' + (d + 1)),
+            original: '0'
+        });
+        distractorTemplates.push('{' + dSlotIndex + '}');
+    }
+
+    // Build answer format template
+    var ansTemplate = '{' + answerSlotIndex + '}';
+    if (arithDesc.answerFormat === 'currency') {
+        ansTemplate = '${' + answerSlotIndex + '}';
+    }
+
+    // Build guide template from operation
+    var sym = { multiply: '*', add: '+', subtract: '-', divide: '/' };
+    var guideTemplate = guide || '';
+    if (!guideTemplate) {
+        var opSym = sym[arithDesc.operation.type] || '?';
+        guideTemplate = '{' + ops[0] + '} ' + opSym + ' {' + ops[1] + '} = {' + answerSlotIndex + '}';
+    }
+
+    return {
+        textTemplate: arithDesc.textTemplate,
+        answerTemplate: ansTemplate,
+        distractorTemplates: distractorTemplates,
+        guideTemplate: guideTemplate,
+        slots: slots,
+        operation: { type: 'user-defined' },
+        openEnded: false
+    };
+}
+
+/**
+ * Convert a cosmetic descriptor into user-defined format.
+ */
+function convertCosmeticToUserDefined(cosmeticDesc, guide) {
+    var slots = cosmeticDesc.tokens.map(function(tok, i) {
+        var type = 'integer';
+        var min, max;
+
+        if (/^\d+\s+\d+\/\d+$/.test(tok) || /^\d+\/\d+$/.test(tok)) {
+            type = 'fraction';
+            min = 0; max = 0; // not used for fraction type
+        } else if (/^\d+%$/.test(tok)) {
+            type = 'percent';
+            var pv = parseInt(tok);
+            min = Math.max(10, pv - 15);
+            max = Math.min(99, pv + 15);
+        } else if (/^\d+\.\d+$/.test(tok)) {
+            type = 'decimal';
+            var dv = parseFloat(tok);
+            var range = computeRange(dv);
+            min = range.min;
+            max = range.max;
+        } else if (/^\d{1,3}(,\d{3})+$/.test(tok)) {
+            type = 'integer';
+            var cv = parseInt(tok.replace(/,/g, ''));
+            min = Math.floor(cv * 0.7);
+            max = Math.ceil(cv * 1.3);
+        } else if (/^-?\d+$/.test(tok)) {
+            type = 'integer';
+            var iv = Math.abs(parseInt(tok));
+            var iRange = computeRange(iv);
+            min = iRange.min;
+            max = iRange.max;
+        } else {
+            min = 1; max = 10;
+        }
+
+        return {
+            index: i,
+            type: type,
+            original: tok,
+            min: min,
+            max: max
+        };
+    });
+
+    // The cosmetic descriptor already has answer and option templates
+    var distractorTemplates = [];
+    if (cosmeticDesc.optionTemplates) {
+        // The first few option templates that differ from answerTemplate are distractors
+        for (var k = 0; k < cosmeticDesc.optionTemplates.length; k++) {
+            if (cosmeticDesc.optionTemplates[k] !== cosmeticDesc.answerTemplate) {
+                distractorTemplates.push(cosmeticDesc.optionTemplates[k]);
+            }
+        }
+        distractorTemplates = distractorTemplates.slice(0, 3);
+    }
+
+    return {
+        textTemplate: cosmeticDesc.textTemplate,
+        answerTemplate: cosmeticDesc.answerTemplate,
+        distractorTemplates: distractorTemplates,
+        guideTemplate: guide || 'The correct answer is: ' + cosmeticDesc.answerTemplate,
+        slots: slots,
+        operation: { type: 'user-defined' },
+        openEnded: false
     };
 }
