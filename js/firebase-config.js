@@ -149,6 +149,10 @@ window.fbSaveCustomTest = async function(testId, testData) {
     return await setDoc(doc(db, 'customTests', testId), testData);
 };
 
+window.fbDeleteCustomTest = async function(testId) {
+    return await deleteDoc(doc(db, 'customTests', testId));
+};
+
 // ========== CUSTOM SKILLS ==========
 
 window.fbGetCustomSkills = async function() {

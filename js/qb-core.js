@@ -1323,12 +1323,7 @@ function qbEditSkill(id) {
     if (!editContainer) return;
 
     const qs = sk.questions || (sk.questionText ? [{ text: sk.questionText, options: [], correct: sk.answerText || '', guide: sk.guideText || '' }] : []);
-    const gradeOptions = ['3', '4', '5', '6', '7', '8', 'algebra1'].map(g =>
-        `<option value="${g}" ${sk.grade === g ? 'selected' : ''}>${g === 'algebra1' ? 'Keystone Algebra' : 'Grade ' + g}</option>`
-    ).join('');
-    const catOptions = ['pssa', 'keystone', 'custom'].map(c =>
-        `<option value="${c}" ${(sk.category || 'custom') === c ? 'selected' : ''}>${c.charAt(0).toUpperCase() + c.slice(1)}</option>`
-    ).join('');
+    // no longer needed — using combo-box inputs below
 
     let questionsHtml = qs.map((q, i) => {
         const isOE = q.openEnded;
@@ -1370,8 +1365,9 @@ function qbEditSkill(id) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
             <div><span class="admin-label">Skill Name</span><input type="text" class="admin-input" id="qb-edit-name" value="${escHtml(sk.name || sk.type || '')}"></div>
             <div><span class="admin-label">Standard</span><input type="text" class="admin-input" id="qb-edit-anchor" value="${escHtml(sk.anchor || '')}"></div>
-            <div><span class="admin-label">Category</span><select class="admin-select" style="width:100%;" id="qb-edit-cat">${catOptions}</select></div>
-            <div><span class="admin-label">Grade</span><select class="admin-select" style="width:100%;" id="qb-edit-grade">${gradeOptions}</select></div>
+            <div><span class="admin-label">Category</span><input type="text" class="admin-input" id="qb-edit-cat" list="qb-cat-list" value="${escHtml(sk.category || '')}"></div>
+            <div><span class="admin-label">Grade</span><input type="text" class="admin-input" id="qb-edit-grade" list="qb-grade-list" value="${escHtml(sk.grade || '')}"></div>
+            <div><span class="admin-label">Class</span><input type="text" class="admin-input" id="qb-edit-class" list="qb-class-list" value="${escHtml(sk.skillClass || '')}"></div>
         </div>
         <div style="margin-top:0.5rem;">${questionsHtml}</div>
         <button class="btn" style="font-size:0.78rem;padding:0.3rem 0.6rem;margin-top:0.3rem;" onclick="qbEditAddQ()">+ Add Question</button>
@@ -1499,8 +1495,9 @@ async function qbSaveEdit() {
             ...existing,
             name,
             anchor: document.getElementById('qb-edit-anchor')?.value.trim() || '',
-            category: document.getElementById('qb-edit-cat')?.value || 'custom',
-            grade: document.getElementById('qb-edit-grade')?.value || '5',
+            category: document.getElementById('qb-edit-cat')?.value.trim() || '',
+            grade: document.getElementById('qb-edit-grade')?.value.trim() || '',
+            skillClass: document.getElementById('qb-edit-class')?.value.trim() || '',
             questions,
             questionText: questions[0]?.text || '',
             questionHTML: questions[0]?.text || '',

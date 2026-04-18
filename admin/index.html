@@ -175,6 +175,23 @@
                     <div style="padding:1rem;color:var(--text-secondary);text-align:center;">Loading tests...</div>
                 </div>
 
+                <!-- Edit test panel (shown when editing a test) -->
+                <div id="test-edit-panel" style="display:none;border:1px solid var(--primary-color);border-radius:8px;padding:0.75rem;margin-bottom:1rem;background:var(--bg-surface);">
+                    <div style="font-size:0.8rem;font-weight:700;color:var(--primary-color);text-transform:uppercase;margin-bottom:0.5rem;">Edit Test</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+                        <div><label class="admin-label">Test Name</label><input type="text" id="test-edit-name" class="text-input"></div>
+                        <div><label class="admin-label">Category</label><input type="text" id="test-edit-category" class="text-input" list="test-edit-cat-list" placeholder="e.g. PSSA, Keystone"><datalist id="test-edit-cat-list"></datalist></div>
+                        <div><label class="admin-label">Grade</label><input type="text" id="test-edit-grade" class="text-input" list="test-edit-grade-list" placeholder="e.g. 3, 4, 8"><datalist id="test-edit-grade-list"></datalist></div>
+                        <div><label class="admin-label">Class</label><input type="text" id="test-edit-class" class="text-input" list="test-edit-class-list" placeholder="e.g. alg1, 6/7"><datalist id="test-edit-class-list"></datalist></div>
+                    </div>
+                    <div id="test-edit-questions" style="margin-top:0.5rem;max-height:250px;overflow-y:auto;"></div>
+                    <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                        <button class="btn" onclick="saveTestEdit()">Save Changes</button>
+                        <button class="btn" style="background:var(--bg-surface);color:var(--text-main);border:1px solid var(--border-color);" onclick="cancelTestEdit()">Cancel</button>
+                    </div>
+                    <div id="test-edit-status" style="margin-top:0.3rem;font-size:0.82rem;"></div>
+                </div>
+
                 <!-- Assignment form (shown when a test is selected) -->
                 <div id="custom-assign-form" style="display:none;border-top:1px solid var(--border-color);padding-top:0.75rem;">
                     <div style="font-size:0.9rem;font-weight:600;color:var(--primary-color);margin-bottom:0.5rem;">
@@ -769,9 +786,15 @@
                 const qCount = (t.questions || t.staticQuestions || []).length;
                 const meta = [t.category, t.testGrade ? 'Grade ' + t.testGrade : '', t.testClass, qCount + 'Q', t.createdAt].filter(Boolean).join(' &middot; ');
                 const selected = id === _selectedTestId ? 'background:var(--primary-color);color:#fff;' : '';
-                return '<div class="test-list-item" onclick="selectTestForAssign(\'' + id + '\', this)" style="padding:0.6rem 0.75rem;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background 0.15s;' + selected + '">' +
-                    '<div style="font-weight:600;font-size:0.9rem;">' + escAdminHtml(t.name || id) + '</div>' +
-                    '<div style="font-size:0.75rem;' + (selected ? 'color:rgba(255,255,255,0.8);' : 'color:var(--text-secondary);') + '">' + meta + '</div>' +
+                return '<div class="test-list-item" style="padding:0.6rem 0.75rem;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background 0.15s;display:flex;align-items:center;justify-content:space-between;' + selected + '">' +
+                    '<div style="flex:1;min-width:0;" onclick="selectTestForAssign(\'' + id + '\', this.parentNode)">' +
+                        '<div style="font-weight:600;font-size:0.9rem;">' + escAdminHtml(t.name || id) + '</div>' +
+                        '<div style="font-size:0.75rem;' + (selected ? 'color:rgba(255,255,255,0.8);' : 'color:var(--text-secondary);') + '">' + meta + '</div>' +
+                    '</div>' +
+                    '<div style="display:flex;gap:0.25rem;flex-shrink:0;margin-left:0.5rem;" onclick="event.stopPropagation()">' +
+                        '<button style="padding:0.15rem 0.4rem;font-size:0.7rem;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-surface);color:var(--text-secondary);cursor:pointer;" onclick="editTest(\'' + id + '\')">Edit</button>' +
+                        '<button style="padding:0.15rem 0.4rem;font-size:0.7rem;border:1px solid var(--incorrect);border-radius:4px;background:var(--bg-surface);color:var(--incorrect);cursor:pointer;" onclick="deleteTest(\'' + id + '\')">Del</button>' +
+                    '</div>' +
                 '</div>';
             }).join('');
         };
@@ -788,6 +811,152 @@
             if (el) { el.style.background = 'var(--primary-color)'; el.style.color = '#fff'; el.querySelectorAll('div').forEach(d => d.style.color = '#fff'); }
             // Reset status
             document.getElementById('custom-assign-status').textContent = '';
+        };
+
+        // ===== DELETE TEST =====
+        window.deleteTest = async function(testId) {
+            if (!_allTestsCache || !_allTestsCache[testId]) return;
+            const name = _allTestsCache[testId].name || testId;
+            if (!confirm('Delete "' + name + '"? This cannot be undone.')) return;
+            try {
+                let retries = 0;
+                while (typeof fbDeleteCustomTest !== 'function' && retries++ < 20) await new Promise(r => setTimeout(r, 150));
+                await fbDeleteCustomTest(testId);
+                delete _allTestsCache[testId];
+                if (_selectedTestId === testId) {
+                    _selectedTestId = null;
+                    document.getElementById('custom-assign-form').style.display = 'none';
+                }
+                filterTestList();
+            } catch(e) {
+                alert('Delete failed: ' + e.message);
+            }
+        };
+
+        // ===== EDIT TEST =====
+        let _editingTestId = null;
+
+        window.editTest = function(testId) {
+            const t = _allTestsCache && _allTestsCache[testId];
+            if (!t) return;
+            _editingTestId = testId;
+
+            document.getElementById('test-edit-name').value = t.name || '';
+            document.getElementById('test-edit-category').value = t.category || '';
+            document.getElementById('test-edit-grade').value = t.testGrade || '';
+            document.getElementById('test-edit-class').value = t.testClass || '';
+
+            // Populate datalists from existing tests
+            const cats = new Set(), grades = new Set(), classes = new Set();
+            Object.values(_allTestsCache).forEach(x => {
+                if (x.category) cats.add(x.category);
+                if (x.testGrade) grades.add(x.testGrade);
+                if (x.testClass) classes.add(x.testClass);
+            });
+            const fillDl = (id, vals) => { const dl = document.getElementById(id); if (dl) dl.innerHTML = Array.from(vals).sort().map(v => '<option value="' + escAdminHtml(v) + '">').join(''); };
+            fillDl('test-edit-cat-list', cats);
+            fillDl('test-edit-grade-list', grades);
+            fillDl('test-edit-class-list', classes);
+
+            // Render question list for editing
+            const qs = t.questions || t.staticQuestions || [];
+            const container = document.getElementById('test-edit-questions');
+            container.innerHTML = qs.map((q, i) => {
+                const isOE = q.openEnded;
+                const optsHtml = isOE ? '' : ['A','B','C','D'].map((letter, j) => {
+                    const optText = (q.options && q.options[j]) ? q.options[j].replace(/^[A-D]\)\s*/, '') : '';
+                    const isCorrect = q.options && q.options[j] && q.options[j].replace(/^[A-D]\)\s*/, '') === (q.correct || '').replace(/^[A-D]\)\s*/, '');
+                    return '<div style="display:flex;gap:0.3rem;align-items:center;margin-bottom:0.2rem;">' +
+                        '<input type="radio" name="teq-correct-' + i + '" value="' + j + '" ' + (isCorrect ? 'checked' : '') + '>' +
+                        '<span style="font-size:0.75rem;font-weight:600;width:14px;">' + letter + '</span>' +
+                        '<input type="text" class="text-input" style="flex:1;padding:0.2rem 0.4rem;font-size:0.8rem;" id="teq-' + i + '-opt' + j + '" value="' + escAdminHtml(optText) + '">' +
+                    '</div>';
+                }).join('');
+
+                return '<div style="border:1px solid var(--border-color);border-radius:6px;padding:0.5rem;margin-bottom:0.4rem;" id="teq-card-' + i + '">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">' +
+                        '<span style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);">Q' + (i+1) + (isOE ? ' (Open Ended)' : ' (MC)') + '</span>' +
+                        '<button style="padding:0.1rem 0.35rem;font-size:0.68rem;border:1px solid var(--incorrect);border-radius:4px;background:var(--bg-surface);color:var(--incorrect);cursor:pointer;" onclick="document.getElementById(\'teq-card-' + i + '\').remove()">Remove</button>' +
+                    '</div>' +
+                    '<textarea class="text-input" rows="2" style="width:100%;font-size:0.82rem;margin-bottom:0.3rem;box-sizing:border-box;" id="teq-' + i + '-text">' + escAdminHtml(q.text || '') + '</textarea>' +
+                    (isOE
+                        ? '<input type="text" class="text-input" style="width:100%;font-size:0.82rem;box-sizing:border-box;" id="teq-' + i + '-answer" value="' + escAdminHtml(q.correct || '') + '" placeholder="Answer">'
+                        : optsHtml) +
+                    '<input type="text" class="text-input" style="width:100%;font-size:0.78rem;margin-top:0.2rem;box-sizing:border-box;" id="teq-' + i + '-guide" value="' + escAdminHtml(q.guide || '') + '" placeholder="Guide/hint">' +
+                '</div>';
+            }).join('');
+
+            document.getElementById('test-edit-panel').style.display = '';
+            document.getElementById('test-edit-status').textContent = '';
+        };
+
+        window.cancelTestEdit = function() {
+            _editingTestId = null;
+            document.getElementById('test-edit-panel').style.display = 'none';
+        };
+
+        window.saveTestEdit = async function() {
+            if (!_editingTestId) return;
+            const st = document.getElementById('test-edit-status');
+            const name = document.getElementById('test-edit-name').value.trim();
+            if (!name) { st.textContent = 'Name is required.'; st.style.color = 'var(--incorrect)'; return; }
+
+            // Collect questions
+            const container = document.getElementById('test-edit-questions');
+            const cards = container.querySelectorAll('[id^="teq-card-"]');
+            const questions = [];
+            cards.forEach(card => {
+                const idx = card.id.split('-').pop();
+                const textEl = document.getElementById('teq-' + idx + '-text');
+                const text = textEl ? textEl.value.trim() : '';
+                if (!text) return;
+                const guideEl = document.getElementById('teq-' + idx + '-guide');
+                const guide = guideEl ? guideEl.value.trim() : '';
+                const answerEl = document.getElementById('teq-' + idx + '-answer');
+                if (answerEl) {
+                    questions.push({ text, options: [], correct: answerEl.value.trim(), guide, openEnded: true, isCustom: true });
+                } else {
+                    const options = [];
+                    ['A','B','C','D'].forEach((l, j) => {
+                        const optEl = document.getElementById('teq-' + idx + '-opt' + j);
+                        if (optEl && optEl.value.trim()) options.push(l + ') ' + optEl.value.trim());
+                    });
+                    const correctRadio = document.querySelector('input[name="teq-correct-' + idx + '"]:checked');
+                    const correctIdx = correctRadio ? parseInt(correctRadio.value) : 0;
+                    const correctOpt = options[correctIdx] || options[0] || '';
+                    questions.push({ text, options, correct: correctOpt.replace(/^[A-D]\)\s*/, ''), guide, openEnded: false, isCustom: true });
+                }
+            });
+
+            st.textContent = 'Saving...'; st.style.color = 'var(--text-secondary)';
+            try {
+                const existing = _allTestsCache[_editingTestId] || {};
+                const updated = Object.assign({}, existing, {
+                    name,
+                    category: document.getElementById('test-edit-category').value.trim() || undefined,
+                    testGrade: document.getElementById('test-edit-grade').value.trim() || undefined,
+                    testClass: document.getElementById('test-edit-class').value.trim() || undefined
+                });
+                // Update questions only if user didn't remove all of them
+                if (questions.length) {
+                    if (existing.dynamic) {
+                        updated.staticQuestions = questions;
+                    } else {
+                        updated.questions = questions;
+                    }
+                }
+                let retries = 0;
+                while (typeof fbSaveCustomTest !== 'function' && retries++ < 20) await new Promise(r => setTimeout(r, 150));
+                await fbSaveCustomTest(_editingTestId, updated);
+                _allTestsCache[_editingTestId] = updated;
+                st.textContent = 'Saved!'; st.style.color = 'var(--correct)';
+                _editingTestId = null;
+                document.getElementById('test-edit-panel').style.display = 'none';
+                populateFilterDropdowns(_allTestsCache);
+                filterTestList();
+            } catch(e) {
+                st.textContent = 'Error: ' + e.message; st.style.color = 'var(--incorrect)';
+            }
         };
 
         window.updateCustomAssignByOptions = function() {
