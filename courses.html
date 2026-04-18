@@ -131,15 +131,11 @@
         }
         listEl.innerHTML = open.map(c => {
             const info = courseCapacityInfo(c);
-            let badge = '';
-            if (info.cap > 0) {
-                if (info.full) badge = '<span class="cp-card-badge cp-badge-full">Full</span>';
-                else if (info.spotsLeft <= 3) badge = `<span class="cp-card-badge cp-badge-few">${info.spotsLeft} spot${info.spotsLeft !== 1 ? 's' : ''} left</span>`;
-                else badge = '<span class="cp-card-badge cp-badge-open">Open</span>';
-            } else {
-                badge = '<span class="cp-card-badge cp-badge-open">Open</span>';
-            }
-            const capText = info.cap > 0 ? `${info.enrolled} / ${info.cap} enrolled` : '';
+            // Only badge the state — full vs open. Don't expose remaining
+            // count or enrolled/capacity numbers publicly.
+            const badge = info.full
+                ? '<span class="cp-card-badge cp-badge-full">Full</span>'
+                : '<span class="cp-card-badge cp-badge-open">Open</span>';
             const dateRange = formatDateRange(c.startDate, c.endDate);
             const regUrl = '/register.html?course=' + encodeURIComponent(c.id);
             const regBtn = info.full
@@ -154,10 +150,10 @@
                         </div>
                         <div class="cp-card-fee">${formatFee(c.fee)}</div>
                     </div>
-                    ${dateRange ? `<div class="cp-card-meta">${escHtml(dateRange)}${capText ? ' · ' + escHtml(capText) : ''}</div>` : (capText ? `<div class="cp-card-meta">${escHtml(capText)}</div>` : '')}
+                    ${dateRange ? `<div class="cp-card-meta">${escHtml(dateRange)}</div>` : ''}
                     ${c.description ? `<div class="cp-card-desc">${escHtml(c.description)}</div>` : '<div class="cp-card-desc" style="color:var(--text-secondary);font-style:italic;">No description provided.</div>'}
                     <div class="cp-card-foot">
-                        <span style="font-size:0.78rem;color:var(--text-secondary);">${info.full ? 'No spots available' : (info.cap > 0 ? `${info.spotsLeft} open` : 'Open enrollment')}</span>
+                        <span style="font-size:0.78rem;color:var(--text-secondary);">${info.full ? 'No spots available' : 'Accepting registrations'}</span>
                         ${regBtn}
                     </div>
                 </div>`;

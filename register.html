@@ -209,12 +209,9 @@
         listEl.innerHTML = availableCourses.map(c => {
             const info = courseCapacityInfo(c);
             const checked = selectedCourses.has(c.id);
-            let badge = '';
-            if (info.cap > 0) {
-                if (info.full) badge = '<span class="course-opt-badge full">Full</span>';
-                else if (info.spotsLeft <= 3) badge = `<span class="course-opt-badge few">${info.spotsLeft} spot${info.spotsLeft !== 1 ? 's' : ''} left</span>`;
-                else badge = `<span style="color:var(--text-secondary);font-size:0.72rem;margin-left:0.4rem;">${info.spotsLeft} spots left</span>`;
-            }
+            // Only show a "Full" badge when capacity is reached. The remaining
+            // spot count is intentionally hidden from the public form.
+            const badge = info.full ? '<span class="course-opt-badge full">Full</span>' : '';
             const disabledAttr = info.full ? 'disabled' : '';
             return `
                 <label class="course-opt ${checked ? 'checked' : ''} ${info.full ? 'full' : ''}" data-id="${escHtml(c.id)}">
