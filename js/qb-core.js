@@ -1085,7 +1085,16 @@ async function qbDoSave(name, anchor, cat, grade, questions, variableDescriptor,
 // PARSE TEXT
 // ========================
 function qbParseText(raw) {
-    const lines = raw.split('\n').map(l => l.trim()).filter(l => l);
+    // Strip leading Markdown decoration (##, **, *, -, >, `, bullet chars) so
+    // regexes below match regardless of the model's formatting style.
+    const stripMd = (s) => s
+        .replace(/^\s*[>\-\*\u2022\u2023\u25E6\u2043]\s+/, '')
+        .replace(/^#{1,6}\s+/, '')
+        .replace(/^\*\*\s*/, '').replace(/\s*\*\*$/, '')
+        .replace(/^__\s*/, '').replace(/\s*__$/, '')
+        .replace(/^`+\s*/, '').replace(/\s*`+$/, '')
+        .trim();
+    const lines = raw.split('\n').map(l => stripMd(l)).filter(l => l);
     const questions = [];
     let cur = null, answerSection = false, answerList = [];
     const flush = () => {
@@ -1096,20 +1105,41 @@ function qbParseText(raw) {
         }
         cur = null;
     };
+    // Accept: "1)", "1.", "1 -", "Q1.", "Question 1:", "**1)**", etc.
+    const qRe = /^(?:Q(?:uestion)?\s*)?(\d+)\s*[).:\-]\s*(.+)/i;
+    // Accept "(A) text", "[A] text", or "A) / A. / A- / A: text". Requires a
+    // delimiter so prose like "Apple is red" isn't mistaken for option A.
+    const cRe = /^(?:\(([A-Da-d])\)|\[([A-Da-d])\]|([A-Da-d])[).:\-])\s+(.+)/;
     for (const line of lines) {
-        if (/^answers?$/i.test(line)) { answerSection = true; flush(); continue; }
+        // Strip inline bold/italic around the option letter so "**A)** text" parses
+        const cleaned = line.replace(/\*\*/g, '').replace(/^__|__$/g, '').trim();
+        if (/^answers?\b/i.test(cleaned)) {
+            answerSection = true;
+            flush();
+            // Some models put the first letter on the same line: "ANSWERS: B, A, D..."
+            const inline = cleaned.replace(/^answers?\s*:?/i, '').trim();
+            if (inline) {
+                const letters = inline.match(/\b([A-D])\b/gi);
+                if (letters) answerList.push(...letters.map(l => l.toUpperCase()));
+            }
+            continue;
+        }
         if (answerSection) {
-            const letters = line.match(/\b([A-D])\b/gi);
+            const letters = cleaned.match(/\b([A-D])\b/gi);
             if (letters) answerList.push(...letters.map(l => l.toUpperCase()));
             continue;
         }
-        const oeMatch = line.match(/^Answer:\s*(.+)/i);
+        const oeMatch = cleaned.match(/^Answer\s*[:\-]\s*(.+)/i);
         if (oeMatch && cur) { cur.correct = oeMatch[1].trim(); cur.openEnded = true; continue; }
-        const qMatch = line.match(/^(\d+)[).]\s*(.+)/);
-        if (qMatch) { flush(); cur = { text: qMatch[2], options: [], correct: '', guide: '', openEnded: false }; continue; }
-        const choiceMatch = line.match(/^([A-Da-d])[).]\s*(.+)/);
-        if (choiceMatch && cur) { cur.options.push(choiceMatch[1].toUpperCase() + ') ' + choiceMatch[2]); continue; }
-        if (cur && !cur.options.length && !cur.openEnded) cur.text += ' ' + line;
+        const qMatch = cleaned.match(qRe);
+        if (qMatch) { flush(); cur = { text: qMatch[2].trim(), options: [], correct: '', guide: '', openEnded: false }; continue; }
+        const choiceMatch = cleaned.match(cRe);
+        if (choiceMatch && cur && cur.options.length < 4) {
+            const letter = (choiceMatch[1] || choiceMatch[2] || choiceMatch[3]).toUpperCase();
+            cur.options.push(letter + ') ' + choiceMatch[4].trim());
+            continue;
+        }
+        if (cur && !cur.options.length && !cur.openEnded) cur.text += ' ' + cleaned;
     }
     flush();
     let mcIdx = 0;

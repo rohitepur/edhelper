@@ -1298,7 +1298,7 @@ function tbRenderSavedSkills() {
             '<span class="tb-skill-count">' + qCount + 'Q</span></div>' +
             (preview ? '<div style="font-size:0.7rem;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;">' + preview + '</div>' : '') +
             '<div style="display:flex;align-items:center;gap:0.3rem;margin-top:0.2rem;">' +
-            '<input type="number" id="saved-qty-' + s.id + '" value="1" min="1" max="50" style="width:45px;padding:0.15rem 0.3rem;border:1px solid var(--border-color);border-radius:4px;font-size:0.75rem;text-align:center;">' +
+            '<input type="number" id="saved-qty-' + s.id + '" value="' + qCount + '" min="1" max="50" style="width:45px;padding:0.15rem 0.3rem;border:1px solid var(--border-color);border-radius:4px;font-size:0.75rem;text-align:center;">' +
             '<button class="tb-skill-add" onclick="tbAddAllFromSaved(\'' + s.id + '\')">+ Add</button></div>' +
             '</div>';
     }).join('');
@@ -1368,7 +1368,7 @@ function _tbGenerateFromTemplate(skill, letters) {
  * 2. Variable descriptor if dynamic
  * 3. Static copy as fallback
  */
-function _tbGenerateOneFromSkill(skill, letters) {
+function _tbGenerateOneFromSkill(skill, letters, qIndex) {
     // Method 1: Use original template engine for seeded skills
     if (skill.seededFromTemplate || skill._templateType) {
         var fromTpl = _tbGenerateFromTemplate(skill, letters);
@@ -1376,7 +1376,9 @@ function _tbGenerateOneFromSkill(skill, letters) {
     }
 
     // Method 2: Use variable descriptor for dynamic skills
-    var q = (skill.questions && skill.questions[0]) || skill;
+    var qs = skill.questions && skill.questions.length ? skill.questions : null;
+    var idx = (typeof qIndex === 'number' && qs) ? ((qIndex % qs.length) + qs.length) % qs.length : 0;
+    var q = qs ? qs[idx] : skill;
     var desc = (q.variableDescriptor) || skill.variableDescriptor || null;
     if (desc && typeof generateFromDescriptor === 'function') {
         var generated = _tbGenerateFromDesc(desc, q, letters);
@@ -1399,7 +1401,7 @@ function tbAddFromSaved(skillId, questionIndex) {
     var skill = (TBState.savedSkillsCache || []).find(function(s) { return s.id === skillId; });
     if (!skill) return;
     var letters = ['A','B','C','D'];
-    var item = _tbGenerateOneFromSkill(skill, letters);
+    var item = _tbGenerateOneFromSkill(skill, letters, questionIndex);
     item._savedId = skillId;
     TBState.questions.push(item);
     tbRender();
@@ -1415,8 +1417,10 @@ function tbAddAllFromSaved(id) {
     var qty = qtyEl ? parseInt(qtyEl.value) || 1 : 1;
     qty = Math.max(1, Math.min(50, qty));
 
+    // Walk through the skill's questions in order (cycling if qty exceeds the
+    // bank's size) so each saved question gets its turn instead of only q[0].
     for (var n = 0; n < qty; n++) {
-        var item = _tbGenerateOneFromSkill(skill, letters);
+        var item = _tbGenerateOneFromSkill(skill, letters, n);
         item._savedId = id;
         TBState.questions.push(item);
     }
