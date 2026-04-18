@@ -4,6 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Question Bank</title>
+    <script>
+        (function() {
+            var key = 'mathsite_admin_session';
+            var data = null;
+            try { data = localStorage.getItem(key); } catch (e) {}
+            if (!data) {
+                var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + key + '=([^;]*)'));
+                if (m) { try { data = decodeURIComponent(m[1]); } catch (e) {} }
+            }
+            var ok = false;
+            if (data) { try { ok = JSON.parse(data).name === 'ADMIN123!'; } catch (e) {} }
+            if (!ok) {
+                location.replace('/admin/index.html?next=' + encodeURIComponent(location.pathname));
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="../css/admin-shared.css">
     <style>

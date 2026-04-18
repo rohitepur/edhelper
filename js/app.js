@@ -5542,9 +5542,7 @@ function loadItem() {
     actionBtn.onclick = processResponse;
 
     if (q.openEnded) {
-        const ansVisHTML = (q.answerVisual && q.answerVisual.visualHTML)
-            ? `<div style="max-width:100%;overflow:hidden;margin-bottom:0.6rem;text-align:center;">${q.answerVisual.visualHTML}</div>` : '';
-        optionsContainer.innerHTML = `${ansVisHTML}<div class="math-input-wrap">
+        optionsContainer.innerHTML = `<div id="answer-visual-reveal" class="hidden" style="max-width:100%;overflow:hidden;margin-bottom:0.6rem;text-align:center;"></div><div class="math-input-wrap">
             <input type="text" id="response-input" class="text-input" placeholder="Enter your response here..." autocomplete="off">
             <button type="button" class="math-grid-toggle" id="math-grid-toggle" onclick="toggleMathGrid()" title="Insert math symbol">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
@@ -5673,6 +5671,10 @@ function loadItem() {
         if (q.openEnded) {
             const inputEl = document.getElementById('response-input');
             if (inputEl) { inputEl.value = prevAnswer.selected || ''; inputEl.disabled = true; }
+            if (q.answerVisual && q.answerVisual.visualHTML) {
+                const reveal = document.getElementById('answer-visual-reveal');
+                if (reveal) { reveal.innerHTML = q.answerVisual.visualHTML; reveal.classList.remove('hidden'); }
+            }
         } else {
             document.querySelectorAll('.option-item').forEach(btn => {
                 btn.disabled = true;
@@ -5818,6 +5820,11 @@ function processResponse() {
         inputEl.disabled = true;
         if (isCorrect) inputEl.classList.add('state-correct');
         else inputEl.classList.add('state-incorrect');
+
+        if (q.answerVisual && q.answerVisual.visualHTML) {
+            const reveal = document.getElementById('answer-visual-reveal');
+            if (reveal) { reveal.innerHTML = q.answerVisual.visualHTML; reveal.classList.remove('hidden'); }
+        }
     } else {
         isCorrect = (state.selectedOption === q.correct);
         document.querySelectorAll('.option-item').forEach(btn => {

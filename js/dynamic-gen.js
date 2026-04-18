@@ -836,8 +836,9 @@ function evaluateConstraint(expr, vals, slots) {
  * Rehydrate a user-defined variable descriptor into a template-compatible object.
  */
 function rehydrateUserDefined(descriptor) {
+    var isOE = descriptor.questionType === 'oe' || !!descriptor.openEnded;
     return {
-        type: 'dynamic-user', anchor: 'Dynamic question (user-defined)', openEnded: false,
+        type: 'dynamic-user', anchor: 'Dynamic question (user-defined)', openEnded: isOE,
         gen: function() {
             var slots = descriptor.slots;
             var vals = generateConstrainedValues(descriptor, slots);
