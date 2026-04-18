@@ -100,6 +100,7 @@
     <div class="en-tabs">
         <button class="en-tab active" id="tab-btn-courses" onclick="switchTab('courses')">Courses</button>
         <button class="en-tab" id="tab-btn-registrations" onclick="switchTab('registrations')">Registrations <span id="reg-count-badge" style="color:var(--text-secondary);font-weight:400;"></span></button>
+        <button class="en-tab" id="tab-btn-schedule" onclick="switchTab('schedule')">Schedule</button>
         <button class="en-tab" id="tab-btn-reconcile" onclick="switchTab('reconcile')">Reconcile</button>
         <button class="en-tab" id="tab-btn-settings" onclick="switchTab('settings')">Site Settings</button>
     </div>
@@ -150,6 +151,11 @@
                     <input type="text" id="course-linked-classes" placeholder="e.g. alg1, alg2, 6/7" list="course-class-list">
                     <datalist id="course-class-list"></datalist>
                 </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Weekly Schedule <span style="font-weight:400;text-transform:none;color:var(--text-secondary);">(two recurring class slots — each defaults to 1 hour)</span></label>
+                    <div id="course-schedule-rows" style="display:grid;gap:0.4rem;"></div>
+                    <button type="button" class="admin-btn" style="margin-top:0.3rem;padding:0.25rem 0.6rem;font-size:0.78rem;" onclick="addScheduleRow()">+ Add another slot</button>
+                </div>
             </div>
             <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
                 <button class="btn" onclick="saveCourse()" id="course-save-btn">Save Course</button>
@@ -183,6 +189,60 @@
                 <button class="btn" style="padding:0.35rem 0.8rem;font-size:0.82rem;" onclick="exportCsv()">Export CSV</button>
             </div>
             <div id="registrations-list"></div>
+        </div>
+    </div>
+
+    <!-- SCHEDULE TAB -->
+    <div id="tab-schedule" style="display:none;">
+        <div class="en-panel">
+            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+                <h2 style="margin:0;">Weekly Schedule</h2>
+                <div style="display:flex;gap:0.3rem;margin-left:auto;">
+                    <button class="admin-btn" onclick="shiftWeek(-1)">&larr; Prev</button>
+                    <button class="admin-btn" onclick="goThisWeek()">This Week</button>
+                    <button class="admin-btn" onclick="shiftWeek(1)">Next &rarr;</button>
+                </div>
+            </div>
+            <div id="schedule-range-label" style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.75rem;"></div>
+            <div id="schedule-grid" style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0.5rem;"></div>
+        </div>
+
+        <div class="en-panel">
+            <h2>Extra Help Sessions</h2>
+            <p style="font-size:0.82rem;color:var(--text-secondary);margin-top:-0.4rem;margin-bottom:0.6rem;">
+                Ad-hoc one-off sessions. They show up on the weekly grid for the date you pick.
+            </p>
+            <div class="en-form-grid">
+                <div>
+                    <label>Date</label>
+                    <input type="date" id="eh-date">
+                </div>
+                <div>
+                    <label>Start Time</label>
+                    <input type="time" id="eh-start" onchange="autofillExtraHelpEnd()">
+                </div>
+                <div>
+                    <label>End Time</label>
+                    <input type="time" id="eh-end">
+                </div>
+                <div>
+                    <label>Course <span style="font-weight:400;text-transform:none;color:var(--text-secondary);">(optional)</span></label>
+                    <select id="eh-course">
+                        <option value="">— Not tied to a course —</option>
+                    </select>
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Note</label>
+                    <input type="text" id="eh-note" placeholder="e.g. Chapter 5 review, extra help for SAT prep">
+                </div>
+            </div>
+            <div style="margin-top:0.5rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                <button class="btn" onclick="addExtraHelp()">Add Extra Help Session</button>
+                <span id="eh-status" class="en-status"></span>
+            </div>
+
+            <h3 style="font-size:0.9rem;color:var(--text-main);margin-top:1.2rem;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.3px;">Upcoming Extra Help</h3>
+            <div id="eh-list"></div>
         </div>
     </div>
 
@@ -256,12 +316,38 @@
 
 </div>
 
-<script src="../js/firebase-config.js?v=20260418d" type="module"></script>
+<script src="../js/firebase-config.js?v=20260418e" type="module"></script>
 <script>
     let coursesCache = [];
     let registrationsCache = [];
     let rosterCache = [];
+    let extraHelpCache = [];
     let editingCourseId = null;
+    // Monday-anchored week start that the Schedule grid is showing.
+    let scheduleWeekStart = mondayOf(new Date());
+
+    const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const DAY_NAMES_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    function mondayOf(d) {
+        const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const dow = x.getDay();
+        const delta = (dow === 0 ? -6 : 1 - dow);
+        x.setDate(x.getDate() + delta);
+        return x;
+    }
+    function ymd(d) {
+        const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+    function formatTime(hhmm) {
+        if (!hhmm) return '';
+        const [h, m] = hhmm.split(':').map(n => parseInt(n));
+        if (isNaN(h)) return hhmm;
+        const period = h >= 12 ? 'PM' : 'AM';
+        const h12 = ((h % 12) || 12);
+        return `${h12}:${String(m || 0).padStart(2, '0')} ${period}`;
+    }
 
     function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function formatDateRange(start, end) {
@@ -276,11 +362,12 @@
     }
 
     function switchTab(tab) {
-        ['courses', 'registrations', 'reconcile', 'settings'].forEach(t => {
+        ['courses', 'registrations', 'schedule', 'reconcile', 'settings'].forEach(t => {
             document.getElementById('tab-' + t).style.display = tab === t ? '' : 'none';
             document.getElementById('tab-btn-' + t).classList.toggle('active', tab === t);
         });
         if (tab === 'reconcile') renderReconcile();
+        if (tab === 'schedule') renderSchedule();
     }
 
     function switchRecSubtab(sub) {
@@ -301,25 +388,87 @@
     async function loadAll() {
         try {
             await waitForFb();
-            const [courses, regs, settings, roster] = await Promise.all([
+            const [courses, regs, settings, roster, extraHelp] = await Promise.all([
                 window.fbGetCourses(),
                 window.fbGetRegistrations(),
                 window.fbGetSiteSettings(),
-                (typeof window.fbGetRoster === 'function' ? window.fbGetRoster() : Promise.resolve([]))
+                (typeof window.fbGetRoster === 'function' ? window.fbGetRoster() : Promise.resolve([])),
+                (typeof window.fbGetExtraHelp === 'function' ? window.fbGetExtraHelp() : Promise.resolve([]))
             ]);
             coursesCache = courses.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
             registrationsCache = regs.sort((a, b) => (b.registeredAt || '').localeCompare(a.registeredAt || ''));
             rosterCache = roster || [];
+            extraHelpCache = extraHelp || [];
             refreshSemesterList();
             refreshCourseFilter();
             refreshClassDatalist();
+            refreshExtraHelpCourseSelect();
+            if (!document.querySelector('#course-schedule-rows .course-schedule-row')) {
+                resetScheduleRows();
+            }
             renderCourses();
             renderRegistrations();
+            renderExtraHelpList();
             loadSiteSettingsForm(settings || {});
             document.getElementById('reg-count-badge').textContent = '(' + registrationsCache.length + ')';
         } catch (e) {
             document.getElementById('courses-list').innerHTML = '<div class="en-empty">Error loading: ' + escHtml(e.message) + '</div>';
         }
+    }
+
+    // ========== COURSE SCHEDULE ROWS ==========
+    function buildScheduleRow(slot) {
+        const row = document.createElement('div');
+        row.className = 'course-schedule-row';
+        row.style.cssText = 'display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;';
+        const dayOptions = DAY_NAMES_LONG.map((n, i) =>
+            `<option value="${i}" ${slot && slot.dayOfWeek === i ? 'selected' : ''}>${n}</option>`
+        ).join('');
+        row.innerHTML = `
+            <select class="sched-day" style="padding:0.4rem 0.6rem;border:1.5px solid var(--border-color);border-radius:var(--radius-sm);font-size:0.85rem;background:var(--bg-panel);color:var(--text-main);">${dayOptions}</select>
+            <input type="time" class="sched-start" value="${slot && slot.startTime ? slot.startTime : '16:00'}" style="padding:0.4rem 0.6rem;border:1.5px solid var(--border-color);border-radius:var(--radius-sm);font-size:0.85rem;background:var(--bg-panel);color:var(--text-main);">
+            <span style="color:var(--text-secondary);font-size:0.85rem;">to</span>
+            <input type="time" class="sched-end" value="${slot && slot.endTime ? slot.endTime : '17:00'}" style="padding:0.4rem 0.6rem;border:1.5px solid var(--border-color);border-radius:var(--radius-sm);font-size:0.85rem;background:var(--bg-panel);color:var(--text-main);">
+            <button type="button" class="admin-btn" style="padding:0.2rem 0.5rem;font-size:0.75rem;color:var(--incorrect);" onclick="this.parentElement.remove()">Remove</button>
+        `;
+        // When start time changes, auto-fill end to +1h only if end still
+        // matches the previous default.
+        const startEl = row.querySelector('.sched-start');
+        const endEl = row.querySelector('.sched-end');
+        startEl.addEventListener('change', () => {
+            if (!startEl.value) return;
+            const [h, m] = startEl.value.split(':').map(n => parseInt(n));
+            const endH = (h + 1) % 24;
+            endEl.value = `${String(endH).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`;
+        });
+        return row;
+    }
+
+    function addScheduleRow(slot) {
+        document.getElementById('course-schedule-rows').appendChild(buildScheduleRow(slot || { dayOfWeek: 1, startTime: '16:00', endTime: '17:00' }));
+    }
+
+    function resetScheduleRows(slots) {
+        const host = document.getElementById('course-schedule-rows');
+        host.innerHTML = '';
+        const arr = (slots && slots.length) ? slots : [
+            { dayOfWeek: 1, startTime: '16:00', endTime: '17:00' },
+            { dayOfWeek: 3, startTime: '16:00', endTime: '17:00' }
+        ];
+        arr.forEach(s => host.appendChild(buildScheduleRow(s)));
+    }
+
+    function collectScheduleSlots() {
+        const rows = document.querySelectorAll('#course-schedule-rows .course-schedule-row');
+        const slots = [];
+        rows.forEach(r => {
+            const day = parseInt(r.querySelector('.sched-day').value);
+            const start = r.querySelector('.sched-start').value;
+            const end = r.querySelector('.sched-end').value;
+            if (isNaN(day) || !start || !end) return;
+            slots.push({ dayOfWeek: day, startTime: start, endTime: end });
+        });
+        return slots;
     }
 
     function refreshClassDatalist() {
@@ -420,6 +569,7 @@
             capacity: capacity,
             description: description,
             linkedClasses: linkedClasses,
+            scheduleSlots: collectScheduleSlots(),
             enrolledCount: existing ? (existing.enrolledCount || 0) : 0,
             registrationOpen: open,
             createdAt: existing ? existing.createdAt : new Date().toISOString(),
@@ -451,6 +601,7 @@
         document.getElementById('course-capacity').value = c.capacity ? c.capacity : '';
         document.getElementById('course-description').value = c.description || '';
         document.getElementById('course-linked-classes').value = (c.linkedClasses || []).join(', ');
+        resetScheduleRows(c.scheduleSlots);
         document.getElementById('course-open').value = c.registrationOpen === false ? 'false' : 'true';
         document.getElementById('course-save-btn').textContent = 'Update Course';
         document.getElementById('course-cancel-btn').style.display = '';
@@ -468,6 +619,7 @@
         document.getElementById('course-capacity').value = '';
         document.getElementById('course-description').value = '';
         document.getElementById('course-linked-classes').value = '';
+        resetScheduleRows();
         document.getElementById('course-open').value = 'true';
         document.getElementById('course-save-btn').textContent = 'Save Course';
         document.getElementById('course-cancel-btn').style.display = 'none';
@@ -1048,6 +1200,190 @@
     function renderReconcile() {
         renderReconcileByCourse();
         renderReconcileByClass();
+    }
+
+    // ========== SCHEDULE TAB ==========
+
+    function refreshExtraHelpCourseSelect() {
+        const sel = document.getElementById('eh-course');
+        if (!sel) return;
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">— Not tied to a course —</option>' +
+            coursesCache.map(c => `<option value="${escHtml(c.id)}">${escHtml(c.className)} · ${escHtml(c.semester || '')}</option>`).join('');
+        sel.value = cur || '';
+    }
+
+    function autofillExtraHelpEnd() {
+        const startEl = document.getElementById('eh-start');
+        const endEl = document.getElementById('eh-end');
+        if (!startEl.value) return;
+        // Only auto-fill if the end is blank, so admin manual edits aren't clobbered.
+        if (endEl.value) return;
+        const [h, m] = startEl.value.split(':').map(n => parseInt(n));
+        const endH = (h + 1) % 24;
+        endEl.value = `${String(endH).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`;
+    }
+
+    async function addExtraHelp() {
+        const date = document.getElementById('eh-date').value;
+        const start = document.getElementById('eh-start').value;
+        const end = document.getElementById('eh-end').value;
+        const courseId = document.getElementById('eh-course').value;
+        const note = document.getElementById('eh-note').value.trim();
+        const st = document.getElementById('eh-status');
+        if (!date || !start || !end) {
+            st.textContent = 'Date, start, and end time are required.';
+            st.className = 'en-status err';
+            return;
+        }
+        const id = 'eh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+        const data = {
+            date, startTime: start, endTime: end,
+            courseId: courseId || null,
+            note: note || '',
+            createdAt: new Date().toISOString()
+        };
+        try {
+            await window.fbSaveExtraHelp(id, data);
+            extraHelpCache.push(Object.assign({ id }, data));
+            st.textContent = 'Added.';
+            st.className = 'en-status ok';
+            document.getElementById('eh-date').value = '';
+            document.getElementById('eh-start').value = '';
+            document.getElementById('eh-end').value = '';
+            document.getElementById('eh-course').value = '';
+            document.getElementById('eh-note').value = '';
+            renderExtraHelpList();
+            renderSchedule();
+        } catch (e) {
+            st.textContent = 'Error: ' + e.message;
+            st.className = 'en-status err';
+        }
+    }
+
+    async function deleteExtraHelp(id) {
+        if (!confirm('Remove this extra help session?')) return;
+        try {
+            await window.fbDeleteExtraHelp(id);
+            extraHelpCache = extraHelpCache.filter(e => e.id !== id);
+            renderExtraHelpList();
+            renderSchedule();
+        } catch (e) {
+            alert('Error: ' + e.message);
+        }
+    }
+
+    function renderExtraHelpList() {
+        const host = document.getElementById('eh-list');
+        if (!host) return;
+        const today = ymd(new Date());
+        const upcoming = extraHelpCache
+            .filter(e => (e.date || '') >= today)
+            .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+        if (!upcoming.length) {
+            host.innerHTML = '<div class="en-empty">No upcoming extra help sessions.</div>';
+            return;
+        }
+        host.innerHTML = upcoming.map(e => {
+            const course = e.courseId ? coursesCache.find(c => c.id === e.courseId) : null;
+            const courseLabel = course ? ` · ${escHtml(course.className)}` : '';
+            const dateLabel = new Date(e.date + 'T12:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+            return `
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.45rem 0.6rem;border:1px solid var(--border-color-light);border-radius:var(--radius-sm);background:var(--bg-surface);margin-bottom:0.3rem;flex-wrap:wrap;">
+                    <div>
+                        <strong>${escHtml(dateLabel)}</strong> · ${escHtml(formatTime(e.startTime))} – ${escHtml(formatTime(e.endTime))}${courseLabel}
+                        ${e.note ? `<div style="font-size:0.82rem;color:var(--text-secondary);margin-top:0.1rem;">${escHtml(e.note)}</div>` : ''}
+                    </div>
+                    <button class="admin-btn" style="padding:0.2rem 0.55rem;font-size:0.75rem;color:var(--incorrect);" onclick="deleteExtraHelp('${escHtml(e.id)}')">Delete</button>
+                </div>`;
+        }).join('');
+    }
+
+    function shiftWeek(delta) {
+        const d = new Date(scheduleWeekStart);
+        d.setDate(d.getDate() + 7 * delta);
+        scheduleWeekStart = d;
+        renderSchedule();
+    }
+
+    function goThisWeek() {
+        scheduleWeekStart = mondayOf(new Date());
+        renderSchedule();
+    }
+
+    function renderSchedule() {
+        const grid = document.getElementById('schedule-grid');
+        const rangeLabel = document.getElementById('schedule-range-label');
+        if (!grid) return;
+
+        // Seven days starting from scheduleWeekStart (Monday).
+        const days = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(scheduleWeekStart);
+            d.setDate(d.getDate() + i);
+            days.push(d);
+        }
+        const firstLbl = days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const lastLbl = days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        rangeLabel.textContent = `Showing ${firstLbl} – ${lastLbl}`;
+
+        // Only show schedules for active (open) courses. Admin can still see
+        // closed courses on the courses list.
+        const activeCourses = coursesCache.filter(c => c.registrationOpen !== false);
+
+        grid.innerHTML = days.map((d, i) => {
+            // Map day index (Sun=0..Sat=6) — day.getDay() returns 0..6.
+            const dow = d.getDay();
+            const dayYmd = ymd(d);
+            const isToday = dayYmd === ymd(new Date());
+
+            // Recurring course tiles for this weekday.
+            const courseTiles = [];
+            activeCourses.forEach(c => {
+                (c.scheduleSlots || []).forEach(s => {
+                    if (s.dayOfWeek === dow) {
+                        courseTiles.push({
+                            sort: s.startTime || '00:00',
+                            html: `
+                                <div style="padding:0.4rem 0.5rem;background:var(--primary-light);border-left:3px solid var(--primary-color);border-radius:var(--radius-sm);font-size:0.78rem;">
+                                    <div style="font-weight:700;color:var(--primary-color);">${escHtml(formatTime(s.startTime))}</div>
+                                    <div style="font-weight:600;color:var(--text-main);margin-top:0.1rem;">${escHtml(c.className)}</div>
+                                    <div style="color:var(--text-secondary);font-size:0.7rem;">${escHtml(formatTime(s.startTime))} – ${escHtml(formatTime(s.endTime))}</div>
+                                </div>`
+                        });
+                    }
+                });
+            });
+
+            // Extra help sessions for this specific date.
+            extraHelpCache.filter(e => e.date === dayYmd).forEach(e => {
+                const course = e.courseId ? coursesCache.find(c => c.id === e.courseId) : null;
+                courseTiles.push({
+                    sort: e.startTime || '00:00',
+                    html: `
+                        <div style="padding:0.4rem 0.5rem;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:var(--radius-sm);font-size:0.78rem;">
+                            <div style="font-weight:700;color:#92400e;">${escHtml(formatTime(e.startTime))} · Extra Help</div>
+                            ${course ? `<div style="font-weight:600;color:var(--text-main);margin-top:0.1rem;">${escHtml(course.className)}</div>` : ''}
+                            ${e.note ? `<div style="color:#92400e;font-size:0.7rem;margin-top:0.1rem;">${escHtml(e.note)}</div>` : ''}
+                            <div style="color:var(--text-secondary);font-size:0.7rem;">${escHtml(formatTime(e.startTime))} – ${escHtml(formatTime(e.endTime))}</div>
+                        </div>`
+                });
+            });
+
+            courseTiles.sort((a, b) => a.sort.localeCompare(b.sort));
+
+            const todayStyle = isToday ? 'border-color:var(--primary-color);box-shadow:0 0 0 2px var(--primary-color);' : '';
+            const dayLbl = DAY_NAMES[dow];
+            const dateLbl = d.getDate();
+            return `
+                <div style="background:var(--bg-panel);border:1px solid var(--border-color-light);border-radius:var(--radius-sm);padding:0.5rem;min-height:140px;display:flex;flex-direction:column;gap:0.3rem;${todayStyle}">
+                    <div style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.3px;display:flex;justify-content:space-between;">
+                        <span>${dayLbl}</span>
+                        <span style="color:${isToday ? 'var(--primary-color)' : 'var(--text-secondary)'};">${dateLbl}</span>
+                    </div>
+                    ${courseTiles.length ? courseTiles.map(t => t.html).join('') : '<div style="font-size:0.72rem;color:var(--text-secondary);font-style:italic;padding:0.2rem 0;">—</div>'}
+                </div>`;
+        }).join('');
     }
 
     loadAll();

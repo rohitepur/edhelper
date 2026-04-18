@@ -90,6 +90,34 @@
         return '$' + num.toFixed(num % 1 === 0 ? 0 : 2);
     }
 
+    const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    function formatTime(hhmm) {
+        if (!hhmm) return '';
+        const [h, m] = hhmm.split(':').map(n => parseInt(n));
+        if (isNaN(h)) return hhmm;
+        const period = h >= 12 ? 'PM' : 'AM';
+        const h12 = ((h % 12) || 12);
+        return `${h12}:${String(m || 0).padStart(2, '0')} ${period}`;
+    }
+
+    // Collapse identical-time slots: "Mon, Wed · 4:00 PM – 5:00 PM".
+    // Mixed times render as one line per slot.
+    function formatSchedule(slots) {
+        if (!slots || !slots.length) return '';
+        const byTime = new Map();
+        slots.forEach(s => {
+            const key = (s.startTime || '') + '|' + (s.endTime || '');
+            if (!byTime.has(key)) byTime.set(key, { start: s.startTime, end: s.endTime, days: [] });
+            byTime.get(key).days.push(s.dayOfWeek);
+        });
+        const groups = Array.from(byTime.values());
+        return groups.map(g => {
+            const uniqDays = [...new Set(g.days)].sort((a, b) => a - b).map(d => DAY_SHORT[d]);
+            return `${uniqDays.join(', ')} · ${formatTime(g.start)} – ${formatTime(g.end)}`;
+        }).join(' · ');
+    }
+
     function courseCapacityInfo(c) {
         const cap = Number(c.capacity) || 0;
         const enrolled = Number(c.enrolledCount) || 0;
@@ -137,6 +165,7 @@
                 ? '<span class="cp-card-badge cp-badge-full">Full</span>'
                 : '<span class="cp-card-badge cp-badge-open">Open</span>';
             const dateRange = formatDateRange(c.startDate, c.endDate);
+            const scheduleLine = formatSchedule(c.scheduleSlots);
             const regUrl = '/register.html?course=' + encodeURIComponent(c.id);
             const regBtn = info.full
                 ? '<span class="cp-register-btn disabled">Full</span>'
@@ -151,6 +180,7 @@
                         <div class="cp-card-fee">${formatFee(c.fee)}</div>
                     </div>
                     ${dateRange ? `<div class="cp-card-meta">${escHtml(dateRange)}</div>` : ''}
+                    ${scheduleLine ? `<div class="cp-card-meta" style="color:var(--primary-color);font-weight:600;">${escHtml(scheduleLine)}</div>` : ''}
                     ${c.description ? `<div class="cp-card-desc">${escHtml(c.description)}</div>` : '<div class="cp-card-desc" style="color:var(--text-secondary);font-style:italic;">No description provided.</div>'}
                     <div class="cp-card-foot">
                         <span style="font-size:0.78rem;color:var(--text-secondary);">${info.full ? 'No spots available' : 'Accepting registrations'}</span>

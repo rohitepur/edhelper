@@ -245,6 +245,21 @@ window.fbSaveSiteSettings = async function(data) {
     return await setDoc(doc(db, 'siteSettings', 'config'), data);
 };
 
+// ========== EXTRA HELP SESSIONS (ad-hoc one-off sessions) ==========
+
+window.fbGetExtraHelp = async function() {
+    const snap = await getDocs(collection(db, 'extraHelpSessions'));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+window.fbSaveExtraHelp = async function(sessionId, data) {
+    return await setDoc(doc(db, 'extraHelpSessions', sessionId), data);
+};
+
+window.fbDeleteExtraHelp = async function(sessionId) {
+    return await deleteDoc(doc(db, 'extraHelpSessions', sessionId));
+};
+
 // ========== ENROLLMENT: REGISTRATIONS ==========
 
 window.fbGetRegistrations = async function() {
