@@ -24,6 +24,9 @@ const QBState = {
     manVisualType: 'none',
     manVisualSlot: 'question',
     manVisualSlots: {},
+    aiVisualType: 'none',
+    aiVisualSlot: 'question',
+    aiVisualSlots: {},
     variableEditors: {},
     manVarEditor: null,
     editingSkillId: null,
@@ -278,6 +281,771 @@ async function qbGenerateAI() {
         st.textContent = 'Error: ' + e.message;
         st.className = 'admin-status err';
     }
+}
+
+// ========================
+// AI: SAMPLE-FIRST, THEN REST
+// ========================
+
+/**
+ * Two-phase AI generation:
+ *   (1) qbGenerateSampleAI generates exactly one question and shows an
+ *       editor where the admin can format the question text with B/I/U
+ *       and line breaks.
+ *   (2) qbGenerateRestAI then asks Gemini for (qty - 1) more questions,
+ *       passing the formatted sample as a style exemplar.
+ * The edited sample and the generated rest all land in QBState.aiQs so
+ * the existing save flow keeps working.
+ */
+async function qbGenerateSampleAI() {
+    const apiKey = localStorage.getItem('mathsite_gemini_key') || document.getElementById('qb-ai-key').value.trim();
+    const st = document.getElementById('qb-ai-status');
+    if (!apiKey) { st.textContent = 'Enter and save your Gemini API key first.'; st.className = 'admin-status err'; return; }
+
+    const qty = parseInt(document.getElementById('qb-ai-qty').value) || 5;
+    if (qty < 2) {
+        st.textContent = 'Use "Generate All at Once" for a single question.';
+        st.className = 'admin-status err';
+        return;
+    }
+
+    QBState.aiSampleQty = qty;
+    QBState.aiSampleQType = document.getElementById('qb-ai-qtype')?.value || 'mc';
+
+    st.innerHTML = '<span class="admin-loading"></span> Generating sample...'; st.className = 'admin-status';
+    document.getElementById('qb-ai-preview').innerHTML = '';
+    document.getElementById('qb-ai-save').style.display = 'none';
+    document.getElementById('qb-ai-sample-panel').style.display = 'none';
+
+    const outputFormat = _buildOutputFormat(QBState.aiSampleQType, 1);
+    const parts = [];
+    if (QBState.aiFileB64) {
+        if (QBState.aiFileMime === 'application/pdf') {
+            parts.push({ inlineData: { mimeType: 'application/pdf', data: QBState.aiFileB64 } });
+        } else if (QBState.aiFileMime && QBState.aiFileMime.startsWith('image/')) {
+            parts.push({ inlineData: { mimeType: QBState.aiFileMime, data: QBState.aiFileB64 } });
+        }
+    }
+    const prompt = document.getElementById('qb-ai-prompt').value.trim();
+    if (!prompt && !QBState.aiFileB64) {
+        st.textContent = 'Enter a prompt or upload a file.'; st.className = 'admin-status err'; return;
+    }
+    QBState.aiSamplePrompt = prompt;
+
+    const typeLabel = QBState.aiSampleQType === 'oe' ? 'open-ended numeric'
+        : QBState.aiSampleQType === 'mixed' ? 'mixed multiple-choice and open-ended numeric'
+        : 'multiple-choice';
+    const systemPrompt = `You are a math teacher creating 1 ${typeLabel} sample question. ${outputFormat}`;
+    const userText = prompt || `Extract and create 1 ${typeLabel} math question from the provided file.`;
+    parts.push({ text: systemPrompt + '\n\n' + userText });
+
+    try {
+        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts }] })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error?.message || 'Gemini API error');
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!text) throw new Error('No text in response');
+        const parsed = qbParseText(text);
+        if (!parsed.length) throw new Error('Could not parse a question from the sample response');
+        QBState.aiSampleQ = parsed[0];
+        _qbShowSampleEditor(QBState.aiSampleQ);
+        st.textContent = 'Sample ready — format it below, then click "Use this format & generate the rest".';
+        st.className = 'admin-status ok';
+    } catch (e) {
+        st.textContent = 'Error: ' + e.message;
+        st.className = 'admin-status err';
+    }
+}
+
+function _qbShowSampleEditor(q) {
+    const panel = document.getElementById('qb-ai-sample-panel');
+    panel.style.display = 'block';
+
+    // Reset per-sample visual state so a previous sample's visuals don't leak in.
+    QBState.aiVisualSlots = {};
+    QBState.aiVisualSlot = 'question';
+    QBState.aiVisualType = 'none';
+
+    // Seed question box with plain text (convert line breaks to <br> so contenteditable shows them).
+    const qEl = document.getElementById('qb-ai-sample-q');
+    qEl.innerHTML = String(q.text || '').replace(/\n/g, '<br>');
+
+    const mcWrap = document.getElementById('qb-ai-sample-mc');
+    const oeWrap = document.getElementById('qb-ai-sample-oe');
+    if (q.openEnded) {
+        mcWrap.style.display = 'none';
+        oeWrap.style.display = 'block';
+        document.getElementById('qb-ai-sample-answer').value = q.correct || '';
+    } else {
+        oeWrap.style.display = 'none';
+        mcWrap.style.display = 'block';
+        const optsWrap = document.getElementById('qb-ai-sample-opts');
+        const opts = (q.options || []).map(o => o.replace(/^[A-D]\)\s*/, ''));
+        while (opts.length < 4) opts.push('');
+        const correctPlain = (q.correct || '').replace(/^[A-D]\)\s*/, '');
+        optsWrap.innerHTML = ['A','B','C','D'].map((letter, i) => {
+            const isCorrect = opts[i] && opts[i] === correctPlain;
+            return `<div class="admin-opt-row">
+                <input type="radio" name="qb-ai-sample-correct" value="${i}" ${isCorrect ? 'checked' : ''}>
+                <span class="admin-opt-lbl">${letter}</span>
+                <input type="text" class="admin-input" id="qb-ai-sample-opt${i}" value="${(opts[i] || '').replace(/"/g, '&quot;')}">
+            </div>`;
+        }).join('');
+    }
+
+    document.getElementById('qb-ai-sample-guide').value = q.guide || '';
+    document.getElementById('qb-ai-sample-status').className = 'admin-status';
+    document.getElementById('qb-ai-sample-status').textContent = '';
+
+    // Mount the visual aid UI with MC- or OE-appropriate slots.
+    const visHost = document.getElementById('qb-ai-sample-visual');
+    if (visHost) _qbMountSampleVisualUI(visHost, !!q.openEnded);
+
+    // Start tracking focus so math symbols and inline-visual insertion land
+    // in whichever field the admin was last editing.
+    _qbEnsureSampleFocusTracking();
+    QBState.aiSampleFocus = qEl;
+
+    qEl.focus();
+}
+
+function qbApplySampleFormat(cmd) {
+    const qEl = document.getElementById('qb-ai-sample-q');
+    qEl.focus();
+    if (cmd === 'bold' || cmd === 'italic' || cmd === 'underline') {
+        document.execCommand(cmd);
+    } else if (cmd === 'linebreak') {
+        document.execCommand('insertHTML', false, '<br>');
+    } else if (cmd === 'clear') {
+        document.execCommand('removeFormat');
+    }
+}
+
+// Track which field the admin was last typing in so math/visual insertion
+// lands in the right place. Attaches focus listeners lazily on first use.
+function _qbEnsureSampleFocusTracking() {
+    if (QBState._aiSampleFocusWired) return;
+    const ids = ['qb-ai-sample-q', 'qb-ai-sample-opt0', 'qb-ai-sample-opt1',
+                 'qb-ai-sample-opt2', 'qb-ai-sample-opt3',
+                 'qb-ai-sample-answer', 'qb-ai-sample-guide'];
+    const attach = (el) => {
+        if (!el || el._qbFocusWired) return;
+        el.addEventListener('focus', () => { QBState.aiSampleFocus = el; });
+        el._qbFocusWired = true;
+    };
+    // Observe the sample panel so inputs created after initial mount (MC options)
+    // also get the focus listener.
+    ids.forEach(id => attach(document.getElementById(id)));
+    const host = document.getElementById('qb-ai-sample-panel');
+    if (host && typeof MutationObserver !== 'undefined') {
+        new MutationObserver(() => ids.forEach(id => attach(document.getElementById(id))))
+            .observe(host, { childList: true, subtree: true });
+    }
+    QBState._aiSampleFocusWired = true;
+}
+
+// Insert raw text or HTML at the caret of whichever field the admin was last
+// focused in. Falls back to the question contenteditable.
+function qbSampleInsert(snippet, asHTML) {
+    _qbEnsureSampleFocusTracking();
+    let target = QBState.aiSampleFocus;
+    const qEl = document.getElementById('qb-ai-sample-q');
+    if (!target || !document.contains(target)) target = qEl;
+
+    if (target === qEl) {
+        // contenteditable — use execCommand to honor caret position and undo stack
+        qEl.focus();
+        document.execCommand(asHTML ? 'insertHTML' : 'insertText', false, snippet);
+        return;
+    }
+    // Regular <input>/<textarea>
+    target.focus();
+    const start = target.selectionStart || 0;
+    const end = target.selectionEnd || 0;
+    const before = target.value.substring(0, start);
+    const after = target.value.substring(end);
+    // For inputs we insert plain text — stripping HTML entities is handled by
+    // the browser when the string contains named entities only at render time.
+    const text = asHTML ? snippet.replace(/<[^>]+>/g, '') : snippet;
+    target.value = before + text + after;
+    const pos = start + text.length;
+    target.selectionStart = target.selectionEnd = pos;
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+// Embed the currently-configured visual as an inline HTML block at the
+// caret in the question contenteditable. The visual becomes part of q.text
+// rather than a separate slot — use this for "show a shape, then ask a
+// question about it" layouts where the visual sits between words.
+function qbInsertVisualInline() {
+    if (QBState.aiVisualType === 'none') {
+        alert('Pick a visual type first (Number Line, Shape, Inequality, or Coordinate), then click Insert at Cursor.');
+        return;
+    }
+    const cfg = _qbAIBuildVisualConfig();
+    const svg = qbRenderVisualSVG(cfg);
+    if (!svg) return;
+    // Stash the config as JSON on the wrapper so we can (a) round-trip to an
+    // AI-friendly placeholder, and (b) re-render if the admin reopens the
+    // saved question later. contenteditable="false" keeps the caret from
+    // landing inside the SVG markup.
+    const cfgJson = JSON.stringify(cfg).replace(/"/g, '&quot;');
+    const wrapped = '<span contenteditable="false" data-vis-config="' + cfgJson + '" style="display:inline-block;vertical-align:middle;max-width:100%;margin:0.15rem 0.25rem;">' + svg + '</span>&nbsp;';
+    const qEl = document.getElementById('qb-ai-sample-q');
+    qEl.focus();
+    document.execCommand('insertHTML', false, wrapped);
+}
+
+// ========================
+// VISUAL PLACEHOLDER PROTOCOL — [[VIS|type=...|k=v|...]]
+// Used so the AI can emit visuals in generated questions without having to
+// author SVG. We substitute placeholders back to real SVG after parsing.
+// ========================
+
+/**
+ * Replace each <span data-vis-config="{...}"> in `html` with a simple
+ * [[VIS|...]] placeholder, for use when sending the sample to the AI as a
+ * style reference. The AI sees an adaptable tag instead of complex SVG.
+ */
+function _qbVisualsToPlaceholders(html) {
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    temp.querySelectorAll('[data-vis-config]').forEach(el => {
+        let cfg;
+        try { cfg = JSON.parse(el.getAttribute('data-vis-config').replace(/&quot;/g, '"')); }
+        catch (e) { return; }
+        const ph = document.createTextNode(_qbConfigToPlaceholder(cfg));
+        el.parentNode.replaceChild(ph, el);
+    });
+    return temp.innerHTML;
+}
+
+function _qbConfigToPlaceholder(cfg) {
+    const parts = ['type=' + (cfg.type || 'none')];
+    if (cfg.type === 'numberline') {
+        parts.push('start=' + cfg.start, 'end=' + cfg.end, 'step=' + (cfg.step || 1));
+        if (cfg.points && cfg.points.length) parts.push('points=' + cfg.points.join(','));
+    } else if (cfg.type === 'shape') {
+        parts.push('shape=' + cfg.shapeType, 'dim1=' + cfg.dim1);
+        if (cfg.dim2) parts.push('dim2=' + cfg.dim2);
+        if (cfg.dim3) parts.push('dim3=' + cfg.dim3);
+    } else if (cfg.type === 'inequality') {
+        parts.push('op=' + cfg.op, 'val1=' + cfg.val1);
+        if (cfg.val2 != null) parts.push('val2=' + cfg.val2);
+        parts.push('start=' + cfg.start, 'end=' + cfg.end);
+    } else if (cfg.type === 'coordinate') {
+        parts.push('xmin=' + cfg.xmin, 'xmax=' + cfg.xmax, 'ymin=' + cfg.ymin, 'ymax=' + cfg.ymax);
+        if (cfg.pointsRaw) parts.push('points=' + cfg.pointsRaw);
+        if (cfg.linesRaw) parts.push('lines=' + cfg.linesRaw);
+    }
+    return '[[VIS|' + parts.join('|') + ']]';
+}
+
+function _qbPlaceholderToConfig(body) {
+    const cfg = {};
+    body.split('|').forEach(part => {
+        const eq = part.indexOf('=');
+        if (eq < 0) return;
+        const k = part.slice(0, eq).trim();
+        const v = part.slice(eq + 1).trim();
+        cfg[k] = v;
+    });
+    const type = cfg.type;
+    if (type === 'numberline') {
+        return {
+            type: 'numberline',
+            start: parseFloat(cfg.start),
+            end: parseFloat(cfg.end),
+            step: parseFloat(cfg.step) || 1,
+            points: (cfg.points || '').split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n))
+        };
+    }
+    if (type === 'shape') {
+        return {
+            type: 'shape',
+            shapeType: cfg.shape || 'rectangle',
+            dim1: cfg.dim1 || '8',
+            dim2: cfg.dim2 || '5',
+            dim3: cfg.dim3 || ''
+        };
+    }
+    if (type === 'inequality') {
+        return {
+            type: 'inequality',
+            op: cfg.op || 'gt',
+            val1: parseFloat(cfg.val1) || 0,
+            val2: parseFloat(cfg.val2) || 5,
+            start: parseFloat(cfg.start) || -5,
+            end: parseFloat(cfg.end) || 10
+        };
+    }
+    if (type === 'coordinate') {
+        return {
+            type: 'coordinate',
+            xmin: parseInt(cfg.xmin) || -6,
+            xmax: parseInt(cfg.xmax) || 6,
+            ymin: parseInt(cfg.ymin) || -6,
+            ymax: parseInt(cfg.ymax) || 6,
+            pointsRaw: cfg.points || '',
+            linesRaw: cfg.lines || ''
+        };
+    }
+    return null;
+}
+
+/** Replace every [[VIS|...]] token in `html` with the rendered SVG wrapper. */
+function _qbPlaceholdersToVisuals(html) {
+    return String(html || '').replace(/\[\[VIS\|([^\]]+)\]\]/g, function(m, body) {
+        const cfg = _qbPlaceholderToConfig(body);
+        if (!cfg) return '';
+        const svg = qbRenderVisualSVG(cfg);
+        if (!svg) return '';
+        const cfgJson = JSON.stringify(cfg).replace(/"/g, '&quot;');
+        return '<span contenteditable="false" data-vis-config="' + cfgJson + '" style="display:inline-block;vertical-align:middle;max-width:100%;margin:0.15rem 0.25rem;">' + svg + '</span>';
+    });
+}
+
+function qbCancelSample() {
+    QBState.aiSampleQ = null;
+    QBState.aiVisualSlots = {};
+    QBState.aiVisualSlot = 'question';
+    QBState.aiVisualType = 'none';
+    document.getElementById('qb-ai-sample-panel').style.display = 'none';
+    document.getElementById('qb-ai-status').className = 'admin-status';
+    document.getElementById('qb-ai-status').textContent = '';
+}
+
+// ========================
+// AI SAMPLE — VISUAL AID (attached to question/A-D/answer slots, same
+// four visual types as the Manual tab but scoped to the AI sample).
+// IDs are prefixed 'qb-ai-vis-' so they don't collide with manual tab.
+// ========================
+function _qbMountSampleVisualUI(hostEl, _isOE) {
+    const typeBarHtml = '<div class="qb-vis-bar" style="margin-bottom:0.3rem;">' +
+        ['none','numberline','shape','inequality','coordinate'].map((t, i) => {
+            const labels = { none: 'None', numberline: 'Number Line', shape: 'Shape', inequality: 'Inequality', coordinate: 'Coordinate' };
+            return `<button type="button" class="qb-vis-btn${i === 0 ? ' active' : ''}" onclick="qbAIVisualType('${t}',this)">${labels[t]}</button>`;
+        }).join('') +
+        '</div>';
+
+    const numberlineCfg = `<div class="qb-vis-config" id="qb-ai-vis-cfg-numberline" style="display:none;">
+        <div class="qb-vis-row">
+            <span class="qb-vis-lbl">Start</span>
+            <input type="number" id="qb-ai-vis-nl-start" class="qb-vis-input" value="-5" onchange="qbAIUpdateVisualPreview()">
+            <span class="qb-vis-lbl" style="min-width:auto;">End</span>
+            <input type="number" id="qb-ai-vis-nl-end" class="qb-vis-input" value="5" onchange="qbAIUpdateVisualPreview()">
+            <span class="qb-vis-lbl" style="min-width:auto;">Step</span>
+            <input type="number" id="qb-ai-vis-nl-step" class="qb-vis-input" value="1" min="0.1" step="0.1" onchange="qbAIUpdateVisualPreview()">
+        </div>
+        <div class="qb-vis-row">
+            <span class="qb-vis-lbl">Points</span>
+            <input type="text" id="qb-ai-vis-nl-points" class="qb-vis-input" style="width:200px;" placeholder="e.g. -2, 3" oninput="qbAIUpdateVisualPreview()">
+        </div>
+        <div class="qb-vis-preview" id="qb-ai-vis-preview-numberline"></div>
+    </div>`;
+
+    const shapeCfg = `<div class="qb-vis-config" id="qb-ai-vis-cfg-shape" style="display:none;">
+        <div class="qb-vis-row">
+            <span class="qb-vis-lbl">Shape</span>
+            <select id="qb-ai-vis-shape-type" class="qb-vis-select" onchange="qbAIShapeTypeChanged()">
+                <option value="rectangle">Rectangle</option>
+                <option value="square">Square</option>
+                <option value="right-triangle">Right Triangle</option>
+                <option value="iso-triangle">Isosceles Triangle</option>
+                <option value="circle">Circle</option>
+                <option value="parallelogram">Parallelogram</option>
+                <option value="trapezoid">Trapezoid</option>
+            </select>
+        </div>
+        <div class="qb-vis-row">
+            <span class="qb-vis-lbl" id="qb-ai-vis-dim1-lbl">Width</span>
+            <input type="text" id="qb-ai-vis-dim1" class="qb-vis-input" value="8" oninput="qbAIUpdateVisualPreview()">
+            <div id="qb-ai-vis-dim2-wrap" style="display:flex;gap:0.45rem;align-items:center;">
+                <span class="qb-vis-lbl" id="qb-ai-vis-dim2-lbl" style="min-width:auto;">Height</span>
+                <input type="text" id="qb-ai-vis-dim2" class="qb-vis-input" value="5" oninput="qbAIUpdateVisualPreview()">
+            </div>
+        </div>
+        <div class="qb-vis-row" id="qb-ai-vis-dim3-row" style="display:none;">
+            <span class="qb-vis-lbl" id="qb-ai-vis-dim3-lbl">Top Base</span>
+            <input type="text" id="qb-ai-vis-dim3" class="qb-vis-input" value="" oninput="qbAIUpdateVisualPreview()">
+        </div>
+        <div class="qb-vis-preview" id="qb-ai-vis-preview-shape"></div>
+    </div>`;
+
+    const inequalityCfg = `<div class="qb-vis-config" id="qb-ai-vis-cfg-inequality" style="display:none;">
+        <div class="qb-vis-row">
+            <span class="qb-vis-lbl">Operator</span>
+            <select id="qb-ai-vis-ineq-op" class="qb-vis-select" onchange="qbAIIneqOpChanged()">
+                <option value="gt">x &gt; val</option>
+                <option value="gte">x &ge; val</option>
+                <option value="lt">x &lt; val</option>
+                <option value="lte">x &le; val</option>
+                <option value="between">between</option>
+            </select>
+        </div>
+        <div class="qb-vis-row">
+            <span class="qb-vis-lbl">Value</span>
+            <input type="number" id="qb-ai-vis-ineq-val1" class="qb-vis-input" value="2" onchange="qbAIUpdateVisualPreview()">
+            <span id="qb-ai-vis-ineq-val2-wrap" style="display:none;">
+                <span class="qb-vis-lbl" style="min-width:auto;">to</span>
+                <input type="number" id="qb-ai-vis-ineq-val2" class="qb-vis-input" value="5" onchange="qbAIUpdateVisualPreview()">
+            </span>
+        </div>
+        <div class="qb-vis-row">
+            <span class="qb-vis-lbl">Range Start</span>
+            <input type="number" id="qb-ai-vis-ineq-start" class="qb-vis-input" value="-2" onchange="qbAIUpdateVisualPreview()">
+            <span class="qb-vis-lbl" style="min-width:auto;">End</span>
+            <input type="number" id="qb-ai-vis-ineq-end" class="qb-vis-input" value="8" onchange="qbAIUpdateVisualPreview()">
+        </div>
+        <div class="qb-vis-preview" id="qb-ai-vis-preview-inequality"></div>
+    </div>`;
+
+    const coordCfg = `<div class="qb-vis-config" id="qb-ai-vis-cfg-coordinate" style="display:none;">
+        <div class="qb-vis-row">
+            <span class="qb-vis-lbl">X Range</span>
+            <input type="number" id="qb-ai-vis-co-xmin" class="qb-vis-input" value="-6" onchange="qbAIUpdateVisualPreview()">
+            <span class="qb-vis-lbl" style="min-width:auto;">to</span>
+            <input type="number" id="qb-ai-vis-co-xmax" class="qb-vis-input" value="6" onchange="qbAIUpdateVisualPreview()">
+        </div>
+        <div class="qb-vis-row">
+            <span class="qb-vis-lbl">Y Range</span>
+            <input type="number" id="qb-ai-vis-co-ymin" class="qb-vis-input" value="-6" onchange="qbAIUpdateVisualPreview()">
+            <span class="qb-vis-lbl" style="min-width:auto;">to</span>
+            <input type="number" id="qb-ai-vis-co-ymax" class="qb-vis-input" value="6" onchange="qbAIUpdateVisualPreview()">
+        </div>
+        <div class="qb-vis-row">
+            <span class="qb-vis-lbl">Points</span>
+            <input type="text" id="qb-ai-vis-co-points" class="qb-vis-input" style="width:200px;" placeholder="e.g. (2,3)A (-1,4)B" oninput="qbAIUpdateVisualPreview()">
+        </div>
+        <div class="qb-vis-row">
+            <span class="qb-vis-lbl">Lines</span>
+            <input type="text" id="qb-ai-vis-co-lines" class="qb-vis-input" style="width:200px;" placeholder="e.g. y=2x+1, y=-x+3" oninput="qbAIUpdateVisualPreview()">
+        </div>
+        <div class="qb-vis-preview" id="qb-ai-vis-preview-coordinate"></div>
+    </div>`;
+
+    const insertInlineBar = `<div style="margin-top:0.4rem;display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
+        <button type="button" class="admin-btn" onclick="qbInsertVisualInline()" title="Insert the configured visual at the cursor position in the question text.">&#8618; Insert at Cursor</button>
+    </div>`;
+
+    hostEl.innerHTML =
+        '<span class="admin-label" style="margin-top:0;">Visual Aid <small style="font-weight:400;text-transform:none;">(pick a shape/line/graph, configure it, then Insert at Cursor)</small></span>' +
+        typeBarHtml + numberlineCfg + shapeCfg + inequalityCfg + coordCfg + insertInlineBar;
+}
+
+function qbAIVisualSlot(slot, btn) {
+    // Stash the current slot's config before switching
+    QBState.aiVisualSlots = QBState.aiVisualSlots || {};
+    QBState.aiVisualSlots[QBState.aiVisualSlot] = QBState.aiVisualType !== 'none'
+        ? _qbAIBuildVisualConfig() : { type: 'none' };
+    QBState.aiVisualSlot = slot;
+    document.querySelectorAll('#qb-ai-sample-visual .qb-vis-slot-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    const saved = QBState.aiVisualSlots[slot];
+    _qbAIRestoreVisualConfig(saved && saved.type !== 'none' ? saved : { type: 'none' });
+}
+
+function qbAIVisualType(type, btn) {
+    QBState.aiVisualType = type;
+    document.querySelectorAll('#qb-ai-sample-visual .qb-vis-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    ['numberline', 'shape', 'inequality', 'coordinate'].forEach(t => {
+        const el = document.getElementById('qb-ai-vis-cfg-' + t);
+        if (el) el.style.display = (type === t) ? '' : 'none';
+    });
+    if (type !== 'none') qbAIUpdateVisualPreview();
+}
+
+function qbAIShapeTypeChanged() {
+    // Delegates to existing shape-type UI logic by temporarily repointing IDs —
+    // but our shape config has its own IDs, so rebuild minimally here.
+    const t = document.getElementById('qb-ai-vis-shape-type').value;
+    const dim1Lbl = document.getElementById('qb-ai-vis-dim1-lbl');
+    const dim2Wrap = document.getElementById('qb-ai-vis-dim2-wrap');
+    const dim2Lbl = document.getElementById('qb-ai-vis-dim2-lbl');
+    const dim3Row = document.getElementById('qb-ai-vis-dim3-row');
+    const dim3Lbl = document.getElementById('qb-ai-vis-dim3-lbl');
+    dim2Wrap.style.display = '';
+    dim3Row.style.display = 'none';
+    if (t === 'rectangle' || t === 'parallelogram') { dim1Lbl.textContent = 'Width'; dim2Lbl.textContent = 'Height'; }
+    else if (t === 'square') { dim1Lbl.textContent = 'Side'; dim2Wrap.style.display = 'none'; }
+    else if (t === 'right-triangle') { dim1Lbl.textContent = 'Base'; dim2Lbl.textContent = 'Height'; }
+    else if (t === 'iso-triangle') { dim1Lbl.textContent = 'Base'; dim2Lbl.textContent = 'Height'; }
+    else if (t === 'circle') { dim1Lbl.textContent = 'Radius'; dim2Wrap.style.display = 'none'; }
+    else if (t === 'trapezoid') { dim1Lbl.textContent = 'Bottom Base'; dim2Lbl.textContent = 'Height'; dim3Row.style.display = ''; dim3Lbl.textContent = 'Top Base'; }
+    qbAIUpdateVisualPreview();
+}
+
+function qbAIIneqOpChanged() {
+    const op = document.getElementById('qb-ai-vis-ineq-op').value;
+    document.getElementById('qb-ai-vis-ineq-val2-wrap').style.display = (op === 'between') ? '' : 'none';
+    qbAIUpdateVisualPreview();
+}
+
+function qbAIUpdateVisualPreview() {
+    if (QBState.aiVisualType === 'none') return;
+    const cfg = _qbAIBuildVisualConfig();
+    const svg = qbRenderVisualSVG(cfg);
+    const el = document.getElementById('qb-ai-vis-preview-' + QBState.aiVisualType);
+    if (el) el.innerHTML = svg;
+}
+
+function _qbAIUpdateSlotIndicators() {
+    ['question', 'A', 'B', 'C', 'D', 'answer'].forEach(key => {
+        const btn = document.getElementById('qb-ai-vis-slot-' + key);
+        if (!btn) return;
+        const cfg = key === QBState.aiVisualSlot
+            ? (QBState.aiVisualType !== 'none' ? { type: QBState.aiVisualType } : { type: 'none' })
+            : ((QBState.aiVisualSlots || {})[key] || { type: 'none' });
+        btn.classList.toggle('has-vis', cfg.type !== 'none');
+    });
+}
+
+function _qbAIBuildVisualConfig() {
+    const t = QBState.aiVisualType;
+    const g = (id) => document.getElementById('qb-ai-vis-' + id);
+    if (t === 'numberline') {
+        const start = parseFloat(g('nl-start').value);
+        const end = parseFloat(g('nl-end').value);
+        const step = parseFloat(g('nl-step').value) || 1;
+        const raw = g('nl-points').value;
+        const points = raw.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+        return { type: 'numberline', start: isNaN(start) ? -5 : start, end: isNaN(end) ? 5 : end, step, points };
+    }
+    if (t === 'shape') {
+        return {
+            type: 'shape', shapeType: g('shape-type').value,
+            dim1: g('dim1').value || '8', dim2: g('dim2').value || '5', dim3: g('dim3').value || ''
+        };
+    }
+    if (t === 'inequality') {
+        return {
+            type: 'inequality', op: g('ineq-op').value,
+            val1: parseFloat(g('ineq-val1').value) || 0,
+            val2: parseFloat(g('ineq-val2').value) || 5,
+            start: parseFloat(g('ineq-start').value) || -2,
+            end: parseFloat(g('ineq-end').value) || 8
+        };
+    }
+    if (t === 'coordinate') {
+        return {
+            type: 'coordinate',
+            xmin: parseInt(g('co-xmin').value) || -6, xmax: parseInt(g('co-xmax').value) || 6,
+            ymin: parseInt(g('co-ymin').value) || -6, ymax: parseInt(g('co-ymax').value) || 6,
+            pointsRaw: g('co-points').value, linesRaw: g('co-lines').value
+        };
+    }
+    return { type: 'none' };
+}
+
+function _qbAIRestoreVisualConfig(cfg) {
+    const type = (cfg && cfg.type) || 'none';
+    const typeBtn = document.querySelector(`#qb-ai-sample-visual .qb-vis-btn[onclick*="'${type}'"]`);
+    qbAIVisualType(type, typeBtn);
+    if (type === 'none' || !cfg) return;
+    const g = (id) => document.getElementById('qb-ai-vis-' + id);
+    if (type === 'numberline') {
+        g('nl-start').value = cfg.start;
+        g('nl-end').value = cfg.end;
+        g('nl-step').value = cfg.step;
+        g('nl-points').value = (cfg.points || []).join(', ');
+    } else if (type === 'shape') {
+        g('shape-type').value = cfg.shapeType;
+        g('dim1').value = cfg.dim1; g('dim2').value = cfg.dim2; g('dim3').value = cfg.dim3 || '';
+        qbAIShapeTypeChanged();
+    } else if (type === 'inequality') {
+        g('ineq-op').value = cfg.op;
+        g('ineq-val1').value = cfg.val1; g('ineq-val2').value = cfg.val2;
+        g('ineq-start').value = cfg.start; g('ineq-end').value = cfg.end;
+        qbAIIneqOpChanged();
+    } else if (type === 'coordinate') {
+        g('co-xmin').value = cfg.xmin; g('co-xmax').value = cfg.xmax;
+        g('co-ymin').value = cfg.ymin; g('co-ymax').value = cfg.ymax;
+        g('co-points').value = cfg.pointsRaw || ''; g('co-lines').value = cfg.linesRaw || '';
+    }
+    qbAIUpdateVisualPreview();
+}
+
+// Collects all AI-sample visual slots into {visualHTML, optionVisuals, answerVisual}
+// in the same shape the save pipeline expects.
+function _qbAICollectVisuals(isOE) {
+    // Flush the currently edited slot first
+    QBState.aiVisualSlots = QBState.aiVisualSlots || {};
+    if (QBState.aiVisualType !== 'none') {
+        QBState.aiVisualSlots[QBState.aiVisualSlot] = _qbAIBuildVisualConfig();
+    }
+    const slots = QBState.aiVisualSlots;
+    let visualHTML = '';
+    let optionVisuals = null;
+    let answerVisual = null;
+    const qCfg = slots['question'];
+    if (qCfg && qCfg.type !== 'none') visualHTML = qbRenderVisualSVG(qCfg);
+    if (isOE) {
+        const aCfg = slots['answer'];
+        if (aCfg && aCfg.type !== 'none') answerVisual = { config: aCfg, visualHTML: qbRenderVisualSVG(aCfg) };
+    } else {
+        const ov = {};
+        let any = false;
+        ['A', 'B', 'C', 'D'].forEach(letter => {
+            const cfg = slots[letter];
+            if (cfg && cfg.type !== 'none') {
+                ov[letter] = { config: cfg, visualHTML: qbRenderVisualSVG(cfg) };
+                any = true;
+            }
+        });
+        if (any) optionVisuals = ov;
+    }
+    return { visualHTML, optionVisuals, answerVisual };
+}
+
+// Read the edited sample out of the DOM — returns a question object with
+// HTML in q.text (so <b>, <i>, <br>, <u> survive into the saved bank).
+function _qbCollectSampleFromDom() {
+    // Visuals live inline inside q.text (inserted at the cursor), so no
+    // separate visualHTML/optionVisuals/answerVisual fields are attached.
+    const qHtml = document.getElementById('qb-ai-sample-q').innerHTML.trim();
+    const guide = document.getElementById('qb-ai-sample-guide').value.trim();
+    const base = QBState.aiSampleQ || {};
+    if (base.openEnded) {
+        return Object.assign({}, base, {
+            text: qHtml,
+            correct: document.getElementById('qb-ai-sample-answer').value.trim(),
+            options: [],
+            guide,
+            openEnded: true,
+            isCustom: true
+        });
+    }
+    const letters = ['A','B','C','D'];
+    const raw = letters.map((_, i) => (document.getElementById('qb-ai-sample-opt' + i).value || '').trim());
+    const correctRadio = document.querySelector('input[name="qb-ai-sample-correct"]:checked');
+    const correctIdx = correctRadio ? parseInt(correctRadio.value) : 0;
+    const options = raw.map((t, i) => t ? letters[i] + ') ' + t : '').filter(Boolean);
+    const correctPlain = raw[correctIdx] || raw.find(Boolean) || '';
+    return Object.assign({}, base, {
+        text: qHtml,
+        options,
+        correct: correctPlain,
+        guide,
+        openEnded: false,
+        isCustom: true
+    });
+}
+
+async function qbGenerateRestAI() {
+    const apiKey = localStorage.getItem('mathsite_gemini_key') || document.getElementById('qb-ai-key').value.trim();
+    const sampleSt = document.getElementById('qb-ai-sample-status');
+    const st = document.getElementById('qb-ai-status');
+    if (!apiKey) { sampleSt.textContent = 'API key missing.'; sampleSt.className = 'admin-status err'; return; }
+
+    const sample = _qbCollectSampleFromDom();
+    const qty = QBState.aiSampleQty || parseInt(document.getElementById('qb-ai-qty').value) || 5;
+    const remaining = Math.max(0, qty - 1);
+    const qtype = QBState.aiSampleQType || document.getElementById('qb-ai-qtype')?.value || 'mc';
+
+    if (remaining === 0) {
+        // No rest to generate — just commit the sample to the preview.
+        QBState.aiQs = [sample];
+        _qbRenderAiPreview();
+        document.getElementById('qb-ai-sample-panel').style.display = 'none';
+        st.textContent = 'Sample saved to preview.';
+        st.className = 'admin-status ok';
+        return;
+    }
+
+    sampleSt.innerHTML = '<span class="admin-loading"></span> Generating ' + remaining + ' more in the same style...';
+    sampleSt.className = 'admin-status';
+
+    const outputFormat = _buildOutputFormat(qtype, remaining);
+    const typeLabel = qtype === 'oe' ? 'open-ended numeric'
+        : qtype === 'mixed' ? 'mixed multiple-choice and open-ended numeric'
+        : 'multiple-choice';
+
+    // Convert any inline visuals in the sample into [[VIS|...]] placeholders
+    // so the AI sees an adaptable tag instead of raw SVG. The model can copy
+    // the same placeholder (same visual type) and tune numeric values to fit
+    // each generated question.
+    const samplePlaceholderText = _qbVisualsToPlaceholders(sample.text || '');
+    const sampleHasVisuals = /\[\[VIS\|/.test(samplePlaceholderText);
+
+    // Hand the model the edited sample verbatim as an HTML exemplar and
+    // tell it to match the formatting (bold/italic/line breaks).
+    const styleInstructions = `The user has formatted a sample question with specific HTML tags (<b>, <i>, <u>, <br>). You MUST match this formatting style in every new question you produce — mirror where bold/italic/underline/line breaks appear (on the same kinds of words, at the same structural positions). Use raw HTML tags inline with the text, do not wrap in Markdown.`;
+
+    const visualInstructions = sampleHasVisuals ? `\n\nThe sample also contains VISUAL placeholders in this exact syntax:
+    [[VIS|type=numberline|start=-5|end=5|step=1|points=3,-2]]
+    [[VIS|type=shape|shape=rectangle|dim1=8|dim2=5]]       (also: square, circle, right-triangle, iso-triangle, parallelogram, trapezoid)
+    [[VIS|type=inequality|op=gt|val1=3|start=-5|end=10]]    (ops: gt, gte, lt, lte, between)
+    [[VIS|type=coordinate|xmin=-6|xmax=6|ymin=-6|ymax=6|points=(2,3)A|lines=y=2x+1]]
+You MUST include visual placeholders in every generated question, in the same position within the question text where the sample uses them. Choose the SAME visual type(s) the sample uses. Adapt numeric values (dimensions, points, range) so the visual matches each new question's content. Output the placeholders verbatim as text inside the question — do not translate them to SVG or HTML; our system substitutes them after.` : '';
+
+    const sampleExample = `Here is the formatted sample question as reference (do NOT repeat this exact question — use it only as a style/format guide):\n\n` +
+        `QUESTION HTML:\n${samplePlaceholderText}\n\n` +
+        (sample.openEnded
+            ? `ANSWER: ${sample.correct || ''}\n`
+            : `OPTIONS:\n${(sample.options || []).join('\n')}\nCORRECT: ${sample.correct || ''}\n`) +
+        (sample.guide ? `GUIDE: ${sample.guide}\n` : '');
+
+    const systemPrompt = `You are a math teacher creating ${remaining} ${typeLabel} questions. ${styleInstructions}${visualInstructions}\n\n${outputFormat}`;
+    const userText = (QBState.aiSamplePrompt || document.getElementById('qb-ai-prompt').value.trim()
+        || `Extract and create ${remaining} more ${typeLabel} questions from the provided file.`)
+        + '\n\n' + sampleExample;
+
+    const parts = [];
+    if (QBState.aiFileB64) {
+        if (QBState.aiFileMime === 'application/pdf') {
+            parts.push({ inlineData: { mimeType: 'application/pdf', data: QBState.aiFileB64 } });
+        } else if (QBState.aiFileMime && QBState.aiFileMime.startsWith('image/')) {
+            parts.push({ inlineData: { mimeType: QBState.aiFileMime, data: QBState.aiFileB64 } });
+        }
+    }
+    parts.push({ text: systemPrompt + '\n\n' + userText });
+
+    try {
+        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts }] })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error?.message || 'Gemini API error');
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!text) throw new Error('No text in response');
+        const rest = qbParseText(text);
+
+        // Substitute any [[VIS|...]] placeholders the AI emitted back into
+        // real inline SVG visuals on each generated question.
+        let placeholderCount = 0;
+        rest.forEach(r => {
+            if (r && typeof r.text === 'string' && r.text.indexOf('[[VIS|') >= 0) {
+                placeholderCount += (r.text.match(/\[\[VIS\|/g) || []).length;
+                r.text = _qbPlaceholdersToVisuals(r.text);
+            }
+        });
+
+        QBState.aiQs = [sample].concat(rest);
+        _qbRenderAiPreview();
+        document.getElementById('qb-ai-sample-panel').style.display = 'none';
+        const visNote = placeholderCount ? ` · ${placeholderCount} visual${placeholderCount !== 1 ? 's' : ''} rendered from AI output` : (sampleHasVisuals ? ' · AI did not emit visual placeholders — you may need to add visuals per card' : '');
+        st.textContent = QBState.aiQs.length + ' questions ready (1 formatted sample + ' + rest.length + ' generated' + visNote + '). Edit any card, then save below.';
+        st.className = 'admin-status ok';
+        sampleSt.className = 'admin-status';
+        sampleSt.textContent = '';
+    } catch (e) {
+        sampleSt.textContent = 'Error: ' + e.message;
+        sampleSt.className = 'admin-status err';
+    }
+}
+
+function _qbRenderAiPreview() {
+    qbRenderQCards('qb-ai-preview', QBState.aiQs, 'ai');
+    document.getElementById('qb-ai-count').textContent = QBState.aiQs.length;
+    document.getElementById('qb-ai-save').style.display = QBState.aiQs.length ? 'block' : 'none';
+    qbInitVariableEditor('ai', QBState.aiQs);
 }
 
 async function qbSaveAI() {
@@ -1187,6 +1955,10 @@ function qbRenderQCards(containerId, qs, prefix) {
                     ? `<div style="margin-top:0.4rem;">${opts}</div>`
                     : `<div class="admin-q-opts">${opts}</div>`;
             })();
+        // Question text is rendered as HTML (not escaped) so admin formatting —
+        // <b>, <i>, <u>, <br> from the sample-first flow — and math spans from
+        // renderMathInHTML both show in the preview.
+        const qHtml = (typeof renderMathInHTML === 'function') ? renderMathInHTML(q.text || '') : (q.text || '');
         return `
         <div class="admin-q-card" id="${prefix}-qcard-${i}">
             <div class="admin-q-card-head">
@@ -1198,7 +1970,7 @@ function qbRenderQCards(containerId, qs, prefix) {
             </div>
             <div class="admin-q-card-body">
                 ${q.visualHTML ? `<div style="margin-bottom:0.4rem;max-width:100%;overflow:hidden;">${q.visualHTML}</div>` : ''}
-                <div style="font-weight:600;margin-bottom:0.3rem;">${escHtml(q.text)}</div>
+                <div style="font-weight:600;margin-bottom:0.3rem;">${qHtml}</div>
                 ${body}
                 ${q.guide ? `<div style="font-size:0.78rem;color:var(--text-secondary);margin-top:0.3rem;">Hint: ${escHtml(q.guide)}</div>` : ''}
             </div>

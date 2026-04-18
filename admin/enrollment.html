@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enrollment Admin</title>
+    <script>
+        (function() {
+            var key = 'mathsite_admin_session';
+            var data = null;
+            try { data = localStorage.getItem(key); } catch (e) {}
+            if (!data) {
+                var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + key + '=([^;]*)'));
+                if (m) { try { data = decodeURIComponent(m[1]); } catch (e) {} }
+            }
+            var ok = false;
+            if (data) { try { ok = JSON.parse(data).name === 'ADMIN123!'; } catch (e) {} }
+            if (!ok) {
+                location.replace('/admin/index.html?next=' + encodeURIComponent(location.pathname));
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/admin-shared.css">
+    <style>
+        body { background: var(--bg-page); margin: 0; padding: 0; min-height: 100vh; }
+        .en-header { background: var(--primary-color); color: #fff; padding: 0.6rem 1.25rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-wrap: wrap; gap: 0.4rem; }
+        .en-header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+        .en-header a { color: rgba(255,255,255,0.85); font-size: 0.78rem; text-decoration: none; padding: 0.2rem 0.5rem; border: 1px solid rgba(255,255,255,0.4); border-radius: 5px; }
+
+        .en-body { max-width: 1100px; margin: 0.75rem auto; padding: 0 1rem; }
+        .en-tabs { display: flex; gap: 0.5rem; border-bottom: 2px solid var(--border-color-light); margin-bottom: 1rem; }
+        .en-tab { padding: 0.6rem 1.1rem; font-size: 0.9rem; font-weight: 600; background: none; border: none; cursor: pointer; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; }
+        .en-tab.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+
+        .en-panel { background: var(--bg-panel); border: 1px solid var(--border-color-light); border-radius: var(--radius-md); padding: 1rem 1.25rem; }
+        .en-panel h2 { margin: 0 0 0.75rem; font-size: 1rem; color: var(--primary-color); text-transform: uppercase; letter-spacing: 0.3px; }
+        .en-panel + .en-panel { margin-top: 1rem; }
+
+        .en-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+        @media (max-width: 640px) { .en-form-grid { grid-template-columns: 1fr; } }
+        .en-form-grid label { display: block; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 0.2rem; }
+        .en-form-grid input, .en-form-grid select { width: 100%; padding: 0.45rem 0.6rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-size: 0.88rem; font-family: inherit; background: var(--bg-panel); color: var(--text-main); box-sizing: border-box; }
+
+        .en-course-row, .en-reg-row { display: grid; gap: 0.5rem; padding: 0.75rem; border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); margin-bottom: 0.5rem; background: var(--bg-surface); }
+        .en-course-row { grid-template-columns: 1fr auto; align-items: center; }
+        .en-course-head { font-weight: 700; color: var(--text-main); }
+        .en-course-meta { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; }
+        .en-course-actions { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+        .en-course-actions button { padding: 0.3rem 0.65rem; font-size: 0.76rem; border: 1px solid var(--border-color); border-radius: 5px; background: var(--bg-panel); cursor: pointer; color: var(--text-secondary); }
+        .en-course-actions button:hover { background: var(--bg-highlight); color: var(--primary-color); border-color: var(--primary-color); }
+        .en-course-actions button.del:hover { background: var(--incorrect-bg); color: var(--incorrect); border-color: var(--incorrect); }
+
+        .en-reg-header { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.4rem; align-items: flex-start; }
+        .en-reg-name { font-weight: 700; font-size: 1rem; }
+        .en-reg-contact { font-size: 0.8rem; color: var(--text-secondary); }
+        .en-reg-payments { margin-top: 0.5rem; display: grid; gap: 0.35rem; }
+        .en-reg-pay { display: grid; grid-template-columns: 1fr auto auto auto; gap: 0.4rem; align-items: center; padding: 0.4rem 0.55rem; background: var(--bg-panel); border: 1px solid var(--border-color-light); border-radius: 5px; font-size: 0.85rem; }
+        @media (max-width: 640px) { .en-reg-pay { grid-template-columns: 1fr; } }
+        .en-reg-pay-name { font-weight: 600; }
+        .en-reg-pay-amount { color: var(--text-secondary); }
+        .en-reg-pay select { padding: 0.25rem 0.4rem; font-size: 0.78rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-panel); color: var(--text-main); }
+        .en-status-badge { display: inline-block; padding: 0.1rem 0.5rem; font-size: 0.7rem; font-weight: 700; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .en-status-pending { background: #fef3c7; color: #92400e; }
+        .en-status-paid { background: var(--correct-bg); color: var(--correct); }
+        .en-status-refunded { background: #e0e7ff; color: #3730a3; }
+        .en-status-waived { background: var(--bg-surface); color: var(--text-secondary); }
+
+        .en-note { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.3rem; padding: 0.35rem 0.5rem; background: var(--bg-surface); border-left: 3px solid var(--border-color); border-radius: 0 4px 4px 0; }
+
+        .en-filters { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; align-items: center; }
+        .en-filters select, .en-filters input { padding: 0.4rem 0.55rem; font-size: 0.85rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-panel); color: var(--text-main); }
+
+        .en-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
+        .en-stat { padding: 0.6rem 0.75rem; background: var(--bg-surface); border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); }
+        .en-stat-val { font-size: 1.2rem; font-weight: 700; color: var(--primary-color); }
+        .en-stat-lbl { font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 0.1rem; }
+
+        .en-status { margin-top: 0.5rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-sm); font-size: 0.85rem; display: none; }
+        .en-status.ok { display: block; background: var(--correct-bg); color: var(--correct); border: 1px solid var(--correct); }
+        .en-status.err { display: block; background: var(--incorrect-bg); color: var(--incorrect); border: 1px solid var(--incorrect); }
+
+        .en-empty { color: var(--text-secondary); font-size: 0.9rem; padding: 1rem; text-align: center; border: 1px dashed var(--border-color); border-radius: var(--radius-sm); }
+    </style>
+</head>
+<body>
+
+<div class="en-header">
+    <div style="display:flex;align-items:center;gap:1rem;">
+        <h1>Enrollment</h1>
+        <a href="/admin/index.html">Admin</a>
+    </div>
+    <div style="display:flex;gap:0.5rem;">
+        <a href="/register.html" target="_blank">Public Registration Page ↗</a>
+    </div>
+</div>
+
+<div class="en-body">
+
+    <div class="en-tabs">
+        <button class="en-tab active" id="tab-btn-courses" onclick="switchTab('courses')">Courses</button>
+        <button class="en-tab" id="tab-btn-registrations" onclick="switchTab('registrations')">Registrations <span id="reg-count-badge" style="color:var(--text-secondary);font-weight:400;"></span></button>
+        <button class="en-tab" id="tab-btn-reconcile" onclick="switchTab('reconcile')">Reconcile</button>
+        <button class="en-tab" id="tab-btn-settings" onclick="switchTab('settings')">Site Settings</button>
+    </div>
+
+    <!-- COURSES TAB -->
+    <div id="tab-courses">
+        <div class="en-panel">
+            <h2 id="course-form-title">Create Course</h2>
+            <div class="en-form-grid">
+                <div>
+                    <label>Class Name *</label>
+                    <input type="text" id="course-name" placeholder="e.g. Algebra I">
+                </div>
+                <div>
+                    <label>Semester *</label>
+                    <input type="text" id="course-semester" placeholder="e.g. Fall 2026" list="semester-list">
+                    <datalist id="semester-list"></datalist>
+                </div>
+                <div>
+                    <label>Start Date</label>
+                    <input type="date" id="course-start">
+                </div>
+                <div>
+                    <label>End Date</label>
+                    <input type="date" id="course-end">
+                </div>
+                <div>
+                    <label>Fee (USD)</label>
+                    <input type="number" id="course-fee" min="0" step="1" placeholder="0">
+                </div>
+                <div>
+                    <label>Capacity <span style="font-weight:400;text-transform:none;color:var(--text-secondary);">(blank or 0 = unlimited)</span></label>
+                    <input type="number" id="course-capacity" min="0" step="1" placeholder="e.g. 20">
+                </div>
+                <div>
+                    <label>Status</label>
+                    <select id="course-open">
+                        <option value="true">Open for registration</option>
+                        <option value="false">Closed</option>
+                    </select>
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Description <span style="font-weight:400;text-transform:none;color:var(--text-secondary);">(shown on the public courses page)</span></label>
+                    <textarea id="course-description" rows="3" placeholder="A brief description of this course — what students will learn, prerequisites, meeting times, etc." style="width:100%;padding:0.45rem 0.6rem;border:1.5px solid var(--border-color);border-radius:var(--radius-sm);font-size:0.88rem;font-family:inherit;background:var(--bg-panel);color:var(--text-main);box-sizing:border-box;resize:vertical;"></textarea>
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Linked Classes <span style="font-weight:400;text-transform:none;color:var(--text-secondary);">(comma-separated class tags that this course maps to — used by the Reconcile tab)</span></label>
+                    <input type="text" id="course-linked-classes" placeholder="e.g. alg1, alg2, 6/7" list="course-class-list">
+                    <datalist id="course-class-list"></datalist>
+                </div>
+            </div>
+            <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+                <button class="btn" onclick="saveCourse()" id="course-save-btn">Save Course</button>
+                <button class="btn" id="course-cancel-btn" onclick="resetCourseForm()" style="background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border-color);display:none;">Cancel Edit</button>
+            </div>
+            <div id="course-status" class="en-status"></div>
+        </div>
+
+        <div class="en-panel">
+            <h2>All Courses</h2>
+            <div id="courses-list"></div>
+        </div>
+    </div>
+
+    <!-- REGISTRATIONS TAB -->
+    <div id="tab-registrations" style="display:none;">
+        <div class="en-panel">
+            <div class="en-summary" id="reg-summary"></div>
+            <div class="en-filters">
+                <input type="text" id="reg-search" placeholder="Search name or email…" oninput="renderRegistrations()">
+                <select id="reg-filter-course" onchange="renderRegistrations()">
+                    <option value="all">All Courses</option>
+                </select>
+                <select id="reg-filter-status" onchange="renderRegistrations()">
+                    <option value="all">Any Payment Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="paid">Paid</option>
+                    <option value="refunded">Refunded</option>
+                    <option value="waived">Waived</option>
+                </select>
+                <button class="btn" style="padding:0.35rem 0.8rem;font-size:0.82rem;" onclick="exportCsv()">Export CSV</button>
+            </div>
+            <div id="registrations-list"></div>
+        </div>
+    </div>
+
+    <!-- RECONCILE TAB -->
+    <div id="tab-reconcile" style="display:none;">
+        <div class="en-panel">
+            <h2>Reconcile</h2>
+            <p style="font-size:0.82rem;color:var(--text-secondary);margin-top:-0.4rem;margin-bottom:0.5rem;">
+                Cross-check registrations against the student roster. Link a course to one or more class tags in the course form above to populate the "By Class" section.
+            </p>
+            <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem;border-bottom:1px solid var(--border-color-light);padding-bottom:0.3rem;">
+                <button class="en-tab active" style="padding:0.4rem 0.8rem;font-size:0.85rem;" id="rec-subtab-course" onclick="switchRecSubtab('course')">By Course</button>
+                <button class="en-tab" style="padding:0.4rem 0.8rem;font-size:0.85rem;" id="rec-subtab-class" onclick="switchRecSubtab('class')">By Class</button>
+            </div>
+            <div id="rec-by-course"></div>
+            <div id="rec-by-class" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- SETTINGS TAB -->
+    <div id="tab-settings" style="display:none;">
+        <div class="en-panel">
+            <h2>Public Site Settings</h2>
+            <p style="font-size:0.82rem;color:var(--text-secondary);margin-top:-0.4rem;margin-bottom:0.75rem;">
+                These fields show up on <a href="/courses.html" target="_blank" style="color:var(--primary-color);">/courses.html</a> (public course listing) and the banner appears on <a href="/register.html" target="_blank" style="color:var(--primary-color);">/register.html</a>.
+            </p>
+            <div class="en-form-grid">
+                <div style="grid-column:1 / -1;">
+                    <label>Site Heading *</label>
+                    <input type="text" id="site-heading" placeholder="e.g. Epur Math Academy">
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Subheading / Tagline</label>
+                    <input type="text" id="site-subheading" placeholder="e.g. After-school math enrichment for grades 3–12">
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Logo Image URL</label>
+                    <input type="url" id="site-logo-url" placeholder="https://... (optional, a hosted logo image)">
+                </div>
+                <div>
+                    <label>Contact Email</label>
+                    <input type="email" id="site-contact-email">
+                </div>
+                <div>
+                    <label>Contact Phone</label>
+                    <input type="tel" id="site-contact-phone">
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Contact Address</label>
+                    <input type="text" id="site-contact-address" placeholder="Optional — city, mailing address, etc.">
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Courses Page Banner <span style="font-weight:400;text-transform:none;color:var(--text-secondary);">(emphasized message shown on /courses.html only)</span></label>
+                    <textarea id="site-banner" rows="3" placeholder="e.g. Registration is open for Fall 2026! Enroll by Aug 15 for early-bird pricing." style="width:100%;padding:0.45rem 0.6rem;border:1.5px solid var(--border-color);border-radius:var(--radius-sm);font-size:0.88rem;font-family:inherit;background:var(--bg-panel);color:var(--text-main);box-sizing:border-box;resize:vertical;"></textarea>
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Registration Page Banner <span style="font-weight:400;text-transform:none;color:var(--text-secondary);">(emphasized message shown on /register.html only — use this for payment instructions)</span></label>
+                    <textarea id="site-reg-banner" rows="4" placeholder="e.g. After submitting, send payment via Zelle to 555-123-4567 or Venmo @epur-math. Reference the student's name in the memo. Your spot is held pending payment." style="width:100%;padding:0.45rem 0.6rem;border:1.5px solid var(--border-color);border-radius:var(--radius-sm);font-size:0.88rem;font-family:inherit;background:var(--bg-panel);color:var(--text-main);box-sizing:border-box;resize:vertical;"></textarea>
+                </div>
+                <div style="grid-column:1 / -1;">
+                    <label>Registration Instructions <span style="font-weight:400;text-transform:none;color:var(--text-secondary);">(longer step-by-step instructions — shown below the banner on /register.html)</span></label>
+                    <textarea id="site-instructions" rows="5" placeholder="e.g.&#10;1. Select the course(s) you want to register for.&#10;2. Fill in the student and parent contact fields.&#10;3. Submit. We'll email a confirmation within 24 hours.&#10;4. Your spot is held pending payment." style="width:100%;padding:0.45rem 0.6rem;border:1.5px solid var(--border-color);border-radius:var(--radius-sm);font-size:0.88rem;font-family:inherit;background:var(--bg-panel);color:var(--text-main);box-sizing:border-box;resize:vertical;"></textarea>
+                </div>
+            </div>
+            <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                <button class="btn" onclick="saveSiteSettings()">Save Settings</button>
+                <span id="settings-status" class="en-status"></span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="../js/firebase-config.js?v=20260418d" type="module"></script>
+<script>
+    let coursesCache = [];
+    let registrationsCache = [];
+    let rosterCache = [];
+    let editingCourseId = null;
+
+    function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function formatDateRange(start, end) {
+        const fmt = d => d ? new Date(d + 'T12:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+        if (start && end) return fmt(start) + ' — ' + fmt(end);
+        return fmt(start) || fmt(end) || '—';
+    }
+    function formatMoney(n) {
+        const num = Number(n);
+        if (!isFinite(num)) return '$0';
+        return '$' + num.toFixed(num % 1 === 0 ? 0 : 2);
+    }
+
+    function switchTab(tab) {
+        ['courses', 'registrations', 'reconcile', 'settings'].forEach(t => {
+            document.getElementById('tab-' + t).style.display = tab === t ? '' : 'none';
+            document.getElementById('tab-btn-' + t).classList.toggle('active', tab === t);
+        });
+        if (tab === 'reconcile') renderReconcile();
+    }
+
+    function switchRecSubtab(sub) {
+        document.getElementById('rec-by-course').style.display = sub === 'course' ? '' : 'none';
+        document.getElementById('rec-by-class').style.display = sub === 'class' ? '' : 'none';
+        document.getElementById('rec-subtab-course').classList.toggle('active', sub === 'course');
+        document.getElementById('rec-subtab-class').classList.toggle('active', sub === 'class');
+    }
+
+    async function waitForFb() {
+        let retries = 0;
+        while (typeof window.fbGetCourses !== 'function' && retries++ < 40) {
+            await new Promise(r => setTimeout(r, 150));
+        }
+        if (typeof window.fbGetCourses !== 'function') throw new Error('Firebase not ready');
+    }
+
+    async function loadAll() {
+        try {
+            await waitForFb();
+            const [courses, regs, settings, roster] = await Promise.all([
+                window.fbGetCourses(),
+                window.fbGetRegistrations(),
+                window.fbGetSiteSettings(),
+                (typeof window.fbGetRoster === 'function' ? window.fbGetRoster() : Promise.resolve([]))
+            ]);
+            coursesCache = courses.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+            registrationsCache = regs.sort((a, b) => (b.registeredAt || '').localeCompare(a.registeredAt || ''));
+            rosterCache = roster || [];
+            refreshSemesterList();
+            refreshCourseFilter();
+            refreshClassDatalist();
+            renderCourses();
+            renderRegistrations();
+            loadSiteSettingsForm(settings || {});
+            document.getElementById('reg-count-badge').textContent = '(' + registrationsCache.length + ')';
+        } catch (e) {
+            document.getElementById('courses-list').innerHTML = '<div class="en-empty">Error loading: ' + escHtml(e.message) + '</div>';
+        }
+    }
+
+    function refreshClassDatalist() {
+        // Seed the linked-class datalist from the roster's class tags plus
+        // any already used on saved courses.
+        const set = new Set();
+        rosterCache.forEach(r => {
+            if (r.class) set.add(r.class);
+            if (Array.isArray(r.classes)) r.classes.forEach(c => { if (c) set.add(c); });
+        });
+        coursesCache.forEach(c => {
+            (c.linkedClasses || []).forEach(cls => { if (cls) set.add(cls); });
+        });
+        const dl = document.getElementById('course-class-list');
+        if (dl) dl.innerHTML = Array.from(set).sort().map(c => `<option value="${escHtml(c)}">`).join('');
+    }
+
+    function loadSiteSettingsForm(s) {
+        document.getElementById('site-heading').value = s.heading || '';
+        document.getElementById('site-subheading').value = s.subheading || '';
+        document.getElementById('site-logo-url').value = s.logoUrl || '';
+        document.getElementById('site-contact-email').value = s.contactEmail || '';
+        document.getElementById('site-contact-phone').value = s.contactPhone || '';
+        document.getElementById('site-contact-address').value = s.contactAddress || '';
+        document.getElementById('site-banner').value = s.banner || '';
+        // Back-compat: old deployments only had `banner` which register used too.
+        document.getElementById('site-reg-banner').value = s.registrationBanner || '';
+        document.getElementById('site-instructions').value = s.instructions || '';
+    }
+
+    async function saveSiteSettings() {
+        const st = document.getElementById('settings-status');
+        const data = {
+            heading: document.getElementById('site-heading').value.trim(),
+            subheading: document.getElementById('site-subheading').value.trim(),
+            logoUrl: document.getElementById('site-logo-url').value.trim(),
+            contactEmail: document.getElementById('site-contact-email').value.trim(),
+            contactPhone: document.getElementById('site-contact-phone').value.trim(),
+            contactAddress: document.getElementById('site-contact-address').value.trim(),
+            banner: document.getElementById('site-banner').value.trim(),
+            registrationBanner: document.getElementById('site-reg-banner').value.trim(),
+            instructions: document.getElementById('site-instructions').value.trim(),
+            updatedAt: new Date().toISOString()
+        };
+        try {
+            await window.fbSaveSiteSettings(data);
+            st.textContent = 'Settings saved.';
+            st.className = 'en-status ok';
+        } catch (e) {
+            st.textContent = 'Error: ' + e.message;
+            st.className = 'en-status err';
+        }
+    }
+
+    function refreshSemesterList() {
+        const uniq = [...new Set(coursesCache.map(c => c.semester).filter(Boolean))];
+        document.getElementById('semester-list').innerHTML = uniq.map(s => `<option value="${escHtml(s)}">`).join('');
+    }
+
+    function refreshCourseFilter() {
+        const sel = document.getElementById('reg-filter-course');
+        const cur = sel.value;
+        sel.innerHTML = '<option value="all">All Courses</option>' +
+            coursesCache.map(c => `<option value="${escHtml(c.id)}">${escHtml(c.className)} · ${escHtml(c.semester || '')}</option>`).join('');
+        sel.value = cur || 'all';
+    }
+
+    // ========== COURSES ==========
+
+    async function saveCourse() {
+        const name = document.getElementById('course-name').value.trim();
+        const semester = document.getElementById('course-semester').value.trim();
+        const start = document.getElementById('course-start').value;
+        const end = document.getElementById('course-end').value;
+        const fee = parseFloat(document.getElementById('course-fee').value) || 0;
+        const capRaw = document.getElementById('course-capacity').value;
+        const capacity = capRaw === '' ? 0 : Math.max(0, parseInt(capRaw) || 0);
+        const open = document.getElementById('course-open').value === 'true';
+        const st = document.getElementById('course-status');
+
+        if (!name || !semester) {
+            st.textContent = 'Class name and semester are required.';
+            st.className = 'en-status err';
+            return;
+        }
+
+        const id = editingCourseId || ('course_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5));
+        const existing = editingCourseId ? coursesCache.find(c => c.id === id) : null;
+        const description = document.getElementById('course-description').value.trim();
+        const linkedClasses = (document.getElementById('course-linked-classes').value || '')
+            .split(',').map(s => s.trim()).filter(Boolean);
+        const data = {
+            className: name,
+            semester: semester,
+            startDate: start || '',
+            endDate: end || '',
+            fee: fee,
+            capacity: capacity,
+            description: description,
+            linkedClasses: linkedClasses,
+            enrolledCount: existing ? (existing.enrolledCount || 0) : 0,
+            registrationOpen: open,
+            createdAt: existing ? existing.createdAt : new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+
+        try {
+            await window.fbSaveCourse(id, data);
+            st.textContent = editingCourseId ? 'Course updated.' : 'Course created.';
+            st.className = 'en-status ok';
+            resetCourseForm();
+            await loadAll();
+        } catch (e) {
+            st.textContent = 'Error: ' + e.message;
+            st.className = 'en-status err';
+        }
+    }
+
+    function editCourse(id) {
+        const c = coursesCache.find(x => x.id === id);
+        if (!c) return;
+        editingCourseId = id;
+        document.getElementById('course-form-title').textContent = 'Edit Course';
+        document.getElementById('course-name').value = c.className || '';
+        document.getElementById('course-semester').value = c.semester || '';
+        document.getElementById('course-start').value = c.startDate || '';
+        document.getElementById('course-end').value = c.endDate || '';
+        document.getElementById('course-fee').value = c.fee || '';
+        document.getElementById('course-capacity').value = c.capacity ? c.capacity : '';
+        document.getElementById('course-description').value = c.description || '';
+        document.getElementById('course-linked-classes').value = (c.linkedClasses || []).join(', ');
+        document.getElementById('course-open').value = c.registrationOpen === false ? 'false' : 'true';
+        document.getElementById('course-save-btn').textContent = 'Update Course';
+        document.getElementById('course-cancel-btn').style.display = '';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function resetCourseForm() {
+        editingCourseId = null;
+        document.getElementById('course-form-title').textContent = 'Create Course';
+        document.getElementById('course-name').value = '';
+        document.getElementById('course-semester').value = '';
+        document.getElementById('course-start').value = '';
+        document.getElementById('course-end').value = '';
+        document.getElementById('course-fee').value = '';
+        document.getElementById('course-capacity').value = '';
+        document.getElementById('course-description').value = '';
+        document.getElementById('course-linked-classes').value = '';
+        document.getElementById('course-open').value = 'true';
+        document.getElementById('course-save-btn').textContent = 'Save Course';
+        document.getElementById('course-cancel-btn').style.display = 'none';
+        document.getElementById('course-status').className = 'en-status';
+        document.getElementById('course-status').textContent = '';
+    }
+
+    async function deleteCourse(id) {
+        const c = coursesCache.find(x => x.id === id);
+        if (!c) return;
+        const linked = registrationsCache.filter(r => (r.courseIds || []).includes(id)).length;
+        const msg = linked > 0
+            ? `Delete "${c.className}"? This course has ${linked} registration${linked !== 1 ? 's' : ''} — those records will keep a snapshot but the course itself will be removed.`
+            : `Delete "${c.className}"?`;
+        if (!confirm(msg)) return;
+        try {
+            await window.fbDeleteCourse(id);
+            await loadAll();
+        } catch (e) {
+            alert('Error deleting: ' + e.message);
+        }
+    }
+
+    // An enrolled "spot" = any active (non-voided) registration whose payment
+    // status for that course isn't 'refunded'. pending, paid, and waived all
+    // hold a seat.
+    function liveEnrolledCount(courseId) {
+        return registrationsCache.filter(r =>
+            !r.voided &&
+            (r.courseIds || []).includes(courseId) &&
+            ((r.payments && r.payments[courseId] && r.payments[courseId].status) || 'pending') !== 'refunded'
+        ).length;
+    }
+
+    function isCourseFull(c) {
+        const cap = Number(c.capacity) || 0;
+        if (cap <= 0) return false;
+        return liveEnrolledCount(c.id) >= cap;
+    }
+
+    function renderCourses() {
+        const listEl = document.getElementById('courses-list');
+        if (!coursesCache.length) {
+            listEl.innerHTML = '<div class="en-empty">No courses yet. Create one above.</div>';
+            return;
+        }
+        listEl.innerHTML = coursesCache.map(c => {
+            const live = liveEnrolledCount(c.id);
+            const stored = Number(c.enrolledCount) || 0;
+            const cap = Number(c.capacity) || 0;
+            const capLabel = cap > 0 ? (live + ' / ' + cap) : (live + ' / ∞');
+            const full = cap > 0 && live >= cap;
+            const openBadge = c.registrationOpen === false
+                ? '<span class="en-status-badge en-status-waived">Closed</span>'
+                : (full ? '<span class="en-status-badge en-status-refunded">Full</span>' : '<span class="en-status-badge en-status-paid">Open</span>');
+            const driftWarn = (stored !== live)
+                ? ` <span title="Stored counter drifted from live count — click Recount" style="font-size:0.7rem;color:var(--incorrect);cursor:help;">⚠ stored ${stored}</span>` : '';
+            return `
+                <div class="en-course-row">
+                    <div>
+                        <div class="en-course-head">${escHtml(c.className || 'Course')} <span style="color:var(--text-secondary);font-weight:400;font-size:0.85rem;">· ${escHtml(c.semester || '')}</span> ${openBadge}</div>
+                        <div class="en-course-meta">${escHtml(formatDateRange(c.startDate, c.endDate))} · Fee ${formatMoney(c.fee)} · Enrolled ${capLabel}${driftWarn}</div>
+                    </div>
+                    <div class="en-course-actions">
+                        <button onclick="editCourse('${escHtml(c.id)}')">Edit</button>
+                        <button onclick="recountCourse('${escHtml(c.id)}')" title="Resync the stored counter with the live count">Recount</button>
+                        <button class="del" onclick="deleteCourse('${escHtml(c.id)}')">Delete</button>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    async function recountCourse(id) {
+        const c = coursesCache.find(x => x.id === id);
+        if (!c) return;
+        const live = liveEnrolledCount(id);
+        try {
+            await window.fbSaveCourse(id, Object.assign({}, c, { enrolledCount: live, updatedAt: new Date().toISOString() }));
+            await loadAll();
+        } catch (e) {
+            alert('Error recounting: ' + e.message);
+        }
+    }
+
+    // ========== REGISTRATIONS ==========
+
+    function courseById(id) { return coursesCache.find(c => c.id === id); }
+
+    async function updatePayment(regId, courseId, field, value) {
+        const reg = registrationsCache.find(r => r.id === regId);
+        if (!reg) return;
+        const payments = Object.assign({}, reg.payments || {});
+        const cur = Object.assign({
+            status: 'pending', amount: 0, paidAt: null, adminNote: ''
+        }, payments[courseId] || {});
+        const prevStatus = cur.status;
+        if (field === 'status') {
+            cur.status = value;
+            cur.paidAt = value === 'paid' ? (cur.paidAt || new Date().toISOString()) : (value === 'pending' ? null : cur.paidAt);
+        } else if (field === 'adminNote') {
+            cur.adminNote = value;
+        } else if (field === 'amount') {
+            cur.amount = parseFloat(value) || 0;
+        }
+        payments[courseId] = cur;
+        try {
+            await window.fbUpdateRegistration(regId, { payments });
+            // Adjust stored enrollment counter when crossing the refunded boundary.
+            if (field === 'status' && prevStatus !== value) {
+                const wasHolding = prevStatus !== 'refunded';
+                const nowHolding = value !== 'refunded';
+                if (wasHolding && !nowHolding) {
+                    try { await window.fbIncrementCourseEnrollment(courseId, -1); } catch (e) {}
+                } else if (!wasHolding && nowHolding) {
+                    try { await window.fbIncrementCourseEnrollment(courseId, +1); } catch (e) {}
+                }
+            }
+            await loadAll();
+        } catch (e) {
+            alert('Error: ' + e.message);
+        }
+    }
+
+    // Courses whose spot this registration is currently holding (i.e. where
+    // the payment isn't refunded). Used by both void and delete to know what
+    // counters to decrement.
+    function _heldCourses(reg) {
+        return (reg.courseIds || []).filter(cid => {
+            const s = (reg.payments && reg.payments[cid] && reg.payments[cid].status) || 'pending';
+            return s !== 'refunded';
+        });
+    }
+
+    async function deleteRegistration(regId) {
+        const reg = registrationsCache.find(r => r.id === regId);
+        if (!reg) return;
+        if (!confirm(`Permanently delete registration for ${reg.studentName}? This cannot be undone. Use Void instead if you may want to restore it later.`)) return;
+        try {
+            // Only release spots that were still held (voided regs already
+            // released theirs at void time).
+            const toRelease = reg.voided ? [] : _heldCourses(reg);
+            await window.fbDeleteRegistration(regId);
+            await Promise.all(toRelease.map(cid => {
+                return window.fbIncrementCourseEnrollment(cid, -1).catch(() => {});
+            }));
+            await loadAll();
+        } catch (e) {
+            alert('Error deleting: ' + e.message);
+        }
+    }
+
+    // Soft delete: mark voided, release held spots, keep row visible so admin
+    // can restore or reference the history later.
+    async function voidRegistration(regId) {
+        const reg = registrationsCache.find(r => r.id === regId);
+        if (!reg || reg.voided) return;
+        if (!confirm(`Void registration for ${reg.studentName}? The seat(s) will be released back to capacity and the row will be marked voided. You can restore it later.`)) return;
+        try {
+            const toRelease = _heldCourses(reg);
+            await window.fbUpdateRegistration(regId, {
+                voided: true,
+                voidedAt: new Date().toISOString()
+            });
+            await Promise.all(toRelease.map(cid => {
+                return window.fbIncrementCourseEnrollment(cid, -1).catch(() => {});
+            }));
+            await loadAll();
+        } catch (e) {
+            alert('Error voiding: ' + e.message);
+        }
+    }
+
+    async function restoreRegistration(regId) {
+        const reg = registrationsCache.find(r => r.id === regId);
+        if (!reg || !reg.voided) return;
+        // Block restore if any course it would re-claim is now full.
+        const wouldHold = _heldCourses(reg);
+        const blocked = wouldHold.filter(cid => {
+            const c = courseById(cid);
+            if (!c) return false;
+            const cap = Number(c.capacity) || 0;
+            if (cap <= 0) return false;
+            return liveEnrolledCount(cid) >= cap;
+        });
+        if (blocked.length) {
+            const names = blocked.map(cid => (courseById(cid) || {}).className || cid).join(', ');
+            if (!confirm(`These courses are now full: ${names}. Restoring will push them over capacity. Continue anyway?`)) return;
+        }
+        try {
+            await window.fbUpdateRegistration(regId, {
+                voided: false,
+                voidedAt: null,
+                restoredAt: new Date().toISOString()
+            });
+            await Promise.all(wouldHold.map(cid => {
+                return window.fbIncrementCourseEnrollment(cid, +1).catch(() => {});
+            }));
+            await loadAll();
+        } catch (e) {
+            alert('Error restoring: ' + e.message);
+        }
+    }
+
+    function renderRegistrations() {
+        const listEl = document.getElementById('registrations-list');
+        const search = (document.getElementById('reg-search').value || '').toLowerCase();
+        const courseFilter = document.getElementById('reg-filter-course').value;
+        const statusFilter = document.getElementById('reg-filter-status').value;
+
+        const filtered = registrationsCache.filter(r => {
+            if (search) {
+                const hay = [r.studentName, r.parentName, r.email, r.phone].map(x => String(x || '').toLowerCase()).join(' ');
+                if (!hay.includes(search)) return false;
+            }
+            if (courseFilter !== 'all' && !(r.courseIds || []).includes(courseFilter)) return false;
+            if (statusFilter !== 'all') {
+                const statuses = Object.values(r.payments || {}).map(p => p.status || 'pending');
+                if (!statuses.includes(statusFilter)) return false;
+            }
+            return true;
+        });
+
+        renderSummary(filtered);
+
+        if (!filtered.length) {
+            listEl.innerHTML = '<div class="en-empty">No registrations match the current filter.</div>';
+            return;
+        }
+
+        listEl.innerHTML = filtered.map(r => {
+            const paymentsHtml = (r.courseIds || []).map(cid => {
+                const course = courseById(cid);
+                const snap = (r.payments && r.payments[cid] && r.payments[cid].courseSnapshot) || {};
+                const title = course ? (course.className + ' · ' + (course.semester || '')) : (snap.className ? (snap.className + ' · ' + (snap.semester || '') + ' (course removed)') : '(course removed)');
+                const pay = Object.assign({ status: 'pending', amount: 0, paidAt: null, adminNote: '' }, (r.payments && r.payments[cid]) || {});
+                const badgeClass = 'en-status-' + pay.status;
+                const badge = `<span class="en-status-badge ${badgeClass}">${pay.status}</span>`;
+                const paidInfo = pay.status === 'paid' && pay.paidAt ? `<span style="font-size:0.72rem;color:var(--text-secondary);">paid ${new Date(pay.paidAt).toLocaleDateString()}</span>` : '';
+                return `
+                    <div class="en-reg-pay">
+                        <div>
+                            <div class="en-reg-pay-name">${escHtml(title)}</div>
+                            <div class="en-reg-pay-amount">${formatMoney(pay.amount)} ${paidInfo}</div>
+                        </div>
+                        <div>${badge}</div>
+                        <select onchange="updatePayment('${escHtml(r.id)}', '${escHtml(cid)}', 'status', this.value)">
+                            <option value="pending" ${pay.status === 'pending' ? 'selected' : ''}>Pending</option>
+                            <option value="paid" ${pay.status === 'paid' ? 'selected' : ''}>Paid</option>
+                            <option value="refunded" ${pay.status === 'refunded' ? 'selected' : ''}>Refunded</option>
+                            <option value="waived" ${pay.status === 'waived' ? 'selected' : ''}>Waived</option>
+                        </select>
+                        <input type="text" placeholder="Note (e.g. Zelle #123)" value="${escHtml(pay.adminNote || '')}"
+                               onchange="updatePayment('${escHtml(r.id)}', '${escHtml(cid)}', 'adminNote', this.value)"
+                               style="padding:0.25rem 0.4rem;font-size:0.78rem;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-panel);color:var(--text-main);min-width:140px;">
+                    </div>`;
+            }).join('');
+            const registered = r.registeredAt ? new Date(r.registeredAt).toLocaleString() : '';
+            const zelleLine = r.zelleConfirmation
+                ? `<div class="en-reg-contact">Zelle #: <strong style="color:var(--correct);">${escHtml(r.zelleConfirmation)}</strong></div>`
+                : '';
+            const voidedBadge = r.voided
+                ? ` <span class="en-status-badge en-status-waived" title="Voided ${r.voidedAt ? new Date(r.voidedAt).toLocaleString() : ''}">Voided</span>`
+                : '';
+            const voidedStyle = r.voided ? 'opacity:0.6;' : '';
+            const actionBtns = r.voided
+                ? `<button style="padding:0.3rem 0.6rem;font-size:0.75rem;border:1px solid var(--correct);border-radius:5px;background:var(--bg-panel);cursor:pointer;color:var(--correct);" onclick="restoreRegistration('${escHtml(r.id)}')">Restore</button>
+                   <button style="padding:0.3rem 0.6rem;font-size:0.75rem;border:1px solid var(--border-color);border-radius:5px;background:var(--bg-panel);cursor:pointer;color:var(--incorrect);" onclick="deleteRegistration('${escHtml(r.id)}')">Delete</button>`
+                : `<button style="padding:0.3rem 0.6rem;font-size:0.75rem;border:1px solid var(--border-color);border-radius:5px;background:var(--bg-panel);cursor:pointer;color:var(--text-secondary);" onclick="voidRegistration('${escHtml(r.id)}')" title="Soft delete — releases seats, keeps the row, can be restored later">Void</button>
+                   <button style="padding:0.3rem 0.6rem;font-size:0.75rem;border:1px solid var(--border-color);border-radius:5px;background:var(--bg-panel);cursor:pointer;color:var(--incorrect);" onclick="deleteRegistration('${escHtml(r.id)}')" title="Permanently delete — cannot be undone">Delete</button>`;
+            return `
+                <div class="en-reg-row" style="${voidedStyle}">
+                    <div class="en-reg-header">
+                        <div>
+                            <div class="en-reg-name">${escHtml(r.studentName || '(no name)')}${voidedBadge}</div>
+                            <div class="en-reg-contact">
+                                ${r.parentName ? escHtml(r.parentName) + ' · ' : ''}
+                                <a href="mailto:${escHtml(r.email || '')}">${escHtml(r.email || '')}</a>
+                                ${r.phone ? ' · ' + escHtml(r.phone) : ''}
+                            </div>
+                            ${zelleLine}
+                            <div class="en-reg-contact">Registered ${escHtml(registered)} · Total ${formatMoney(r.totalAmount || 0)}</div>
+                        </div>
+                        <div style="display:flex;gap:0.3rem;flex-wrap:wrap;">${actionBtns}</div>
+                    </div>
+                    ${r.note ? '<div class="en-note">' + escHtml(r.note) + '</div>' : ''}
+                    <div class="en-reg-payments">${paymentsHtml || '<div class="en-empty">No courses on this registration.</div>'}</div>
+                </div>`;
+        }).join('');
+    }
+
+    function renderSummary(filtered) {
+        let totalDue = 0, totalPaid = 0, totalPending = 0, payRows = 0, activeCount = 0, voidedCount = 0;
+        filtered.forEach(r => {
+            if (r.voided) { voidedCount++; return; }
+            activeCount++;
+            Object.values(r.payments || {}).forEach(p => {
+                payRows++;
+                const amt = Number(p.amount) || 0;
+                if (p.status === 'paid') totalPaid += amt;
+                else if (p.status === 'pending') totalPending += amt;
+                totalDue += amt;
+            });
+        });
+        const voidedLine = voidedCount ? `<div class="en-stat"><div class="en-stat-val" style="color:var(--text-secondary);">${voidedCount}</div><div class="en-stat-lbl">Voided (excluded)</div></div>` : '';
+        document.getElementById('reg-summary').innerHTML = `
+            <div class="en-stat"><div class="en-stat-val">${activeCount}</div><div class="en-stat-lbl">Registrations</div></div>
+            <div class="en-stat"><div class="en-stat-val">${payRows}</div><div class="en-stat-lbl">Course Enrollments</div></div>
+            <div class="en-stat"><div class="en-stat-val">${formatMoney(totalPaid)}</div><div class="en-stat-lbl">Collected</div></div>
+            <div class="en-stat"><div class="en-stat-val">${formatMoney(totalPending)}</div><div class="en-stat-lbl">Outstanding</div></div>
+            ${voidedLine}
+        `;
+    }
+
+    function exportCsv() {
+        const rows = [['Student','Parent','Email','Phone','Zelle #','Course','Semester','Fee','Status','Paid At','Admin Note','Registered','Note']];
+        registrationsCache.forEach(r => {
+            (r.courseIds || []).forEach(cid => {
+                const pay = (r.payments && r.payments[cid]) || {};
+                const snap = pay.courseSnapshot || {};
+                const course = courseById(cid);
+                const className = (course && course.className) || snap.className || cid;
+                const semester = (course && course.semester) || snap.semester || '';
+                rows.push([
+                    r.studentName || '', r.parentName || '', r.email || '', r.phone || '',
+                    r.zelleConfirmation || '',
+                    className, semester,
+                    Number(pay.amount) || 0,
+                    pay.status || 'pending',
+                    pay.paidAt || '',
+                    pay.adminNote || '',
+                    r.registeredAt || '',
+                    r.note || ''
+                ]);
+            });
+        });
+        const csv = rows.map(row => row.map(cell => {
+            const s = String(cell == null ? '' : cell);
+            return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'registrations_' + new Date().toISOString().slice(0,10) + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // ========== RECONCILE ==========
+
+    const _PAY_BUCKETS = [
+        { key: 'paid',     label: 'Paid',     cls: 'en-status-paid' },
+        { key: 'pending',  label: 'Pending',  cls: 'en-status-pending' },
+        { key: 'waived',   label: 'Waived',   cls: 'en-status-waived' },
+        { key: 'refunded', label: 'Refunded', cls: 'en-status-refunded' }
+    ];
+
+    function _activeRegs() {
+        return registrationsCache.filter(r => !r.voided);
+    }
+
+    function _buildCourseBuckets(courseId) {
+        const buckets = { paid: [], pending: [], waived: [], refunded: [] };
+        _activeRegs().forEach(r => {
+            if (!(r.courseIds || []).includes(courseId)) return;
+            const status = (r.payments && r.payments[courseId] && r.payments[courseId].status) || 'pending';
+            const pay = (r.payments && r.payments[courseId]) || {};
+            (buckets[status] || buckets.pending).push({
+                name: r.studentName || '(no name)',
+                email: r.email || '',
+                phone: r.phone || '',
+                zelle: r.zelleConfirmation || '',
+                amount: Number(pay.amount) || 0,
+                paidAt: pay.paidAt || '',
+                regId: r.id
+            });
+        });
+        Object.keys(buckets).forEach(k => buckets[k].sort((a, b) => a.name.localeCompare(b.name)));
+        return buckets;
+    }
+
+    // highlightFn(name) → truthy means mark this row as a reconciliation gap.
+    function _renderStudentList(students, emptyMsg, highlightFn) {
+        if (!students.length) return `<div style="font-size:0.78rem;color:var(--text-secondary);font-style:italic;padding:0.3rem 0;">${emptyMsg || '—'}</div>`;
+        return students.map(s => {
+            const gap = highlightFn && highlightFn(s.name);
+            const style = gap
+                ? 'padding:0.3rem 0.5rem;border-bottom:1px solid var(--border-color-light);font-size:0.85rem;display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;background:#fef3c7;border-left:3px solid #f59e0b;'
+                : 'padding:0.3rem 0.5rem;border-bottom:1px solid var(--border-color-light);font-size:0.85rem;display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;';
+            const flag = gap ? '<span title="Not found on the other side" style="font-size:0.7rem;color:#92400e;font-weight:700;">⚠</span> ' : '';
+            return `
+            <div style="${style}">
+                <span>
+                    ${flag}<strong>${escHtml(s.name)}</strong>
+                    ${s.email ? `<span style="color:var(--text-secondary);"> · ${escHtml(s.email)}</span>` : ''}
+                    ${s.zelle ? `<span style="color:var(--correct);font-size:0.72rem;"> · Zelle #${escHtml(s.zelle)}</span>` : ''}
+                </span>
+                ${s.amount != null ? `<span style="color:var(--text-secondary);font-size:0.78rem;">${formatMoney(s.amount)}</span>` : ''}
+            </div>`;
+        }).join('');
+    }
+
+    function renderReconcileByCourse() {
+        const host = document.getElementById('rec-by-course');
+        if (!coursesCache.length) {
+            host.innerHTML = '<div class="en-empty">No courses yet. Create one in the Courses tab.</div>';
+            return;
+        }
+        host.innerHTML = coursesCache.map(c => {
+            const buckets = _buildCourseBuckets(c.id);
+            const total = _PAY_BUCKETS.reduce((n, b) => n + buckets[b.key].length, 0);
+            const bucketHtml = _PAY_BUCKETS.map(b => {
+                const list = buckets[b.key];
+                return `
+                    <div style="margin-top:0.5rem;">
+                        <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem;">
+                            <span class="en-status-badge ${b.cls}">${b.label}</span>
+                            <span style="font-size:0.78rem;color:var(--text-secondary);">${list.length} student${list.length !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div style="background:var(--bg-panel);border:1px solid var(--border-color-light);border-radius:var(--radius-sm);">
+                            ${_renderStudentList(list, 'No students in this bucket.')}
+                        </div>
+                    </div>`;
+            }).join('');
+            const linkedTags = (c.linkedClasses || []).length
+                ? (c.linkedClasses || []).map(cls => `<span class="en-status-badge" style="background:var(--bg-surface);color:var(--text-main);border:1px solid var(--border-color);">${escHtml(cls)}</span>`).join(' ')
+                : '<span style="font-size:0.75rem;color:var(--text-secondary);font-style:italic;">No linked classes — set them in the course form.</span>';
+            return `
+                <div class="en-panel" style="margin-top:0.75rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;flex-wrap:wrap;">
+                        <div>
+                            <div style="font-weight:700;font-size:1rem;color:var(--text-main);">${escHtml(c.className || 'Course')} <span style="color:var(--text-secondary);font-weight:400;font-size:0.85rem;">· ${escHtml(c.semester || '')}</span></div>
+                            <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:0.15rem;">${total} registration${total !== 1 ? 's' : ''} · linked to: ${linkedTags}</div>
+                        </div>
+                    </div>
+                    ${bucketHtml}
+                </div>`;
+        }).join('');
+    }
+
+    function renderReconcileByClass() {
+        const host = document.getElementById('rec-by-class');
+        // Build class → { courses: [courseIds], roster: [students from roster] }
+        const classMap = {};
+        coursesCache.forEach(c => {
+            (c.linkedClasses || []).forEach(cls => {
+                if (!classMap[cls]) classMap[cls] = { courses: [], roster: [] };
+                classMap[cls].courses.push(c);
+            });
+        });
+        rosterCache.forEach(r => {
+            const tags = new Set();
+            if (r.class) tags.add(r.class);
+            if (Array.isArray(r.classes)) r.classes.forEach(c => c && tags.add(c));
+            tags.forEach(cls => {
+                if (!classMap[cls]) classMap[cls] = { courses: [], roster: [] };
+                classMap[cls].roster.push({
+                    name: ((r.firstName || '') + ' ' + (r.lastName || '')).trim() || '(no name)',
+                    grade: r.grade || '',
+                    parentEmail: r.parentEmail || ''
+                });
+            });
+        });
+
+        const classKeys = Object.keys(classMap).sort();
+        if (!classKeys.length) {
+            host.innerHTML = '<div class="en-empty">No classes linked yet. Open a course in the Courses tab and fill in "Linked Classes".</div>';
+            return;
+        }
+
+        host.innerHTML = classKeys.map(cls => {
+            const info = classMap[cls];
+            info.roster.sort((a, b) => a.name.localeCompare(b.name));
+
+            // Gather registered students (by name) across all linked courses,
+            // so admin can compare against the roster at a glance.
+            const registeredByStatus = { paid: [], pending: [], waived: [], refunded: [] };
+            info.courses.forEach(c => {
+                const b = _buildCourseBuckets(c.id);
+                _PAY_BUCKETS.forEach(bk => {
+                    b[bk.key].forEach(s => registeredByStatus[bk.key].push(Object.assign({}, s, { courseName: c.className })));
+                });
+            });
+
+            const normName = n => String(n || '').toLowerCase().replace(/\s+/g, ' ').trim();
+            const registeredNameSet = new Set();
+            _PAY_BUCKETS.forEach(bk => registeredByStatus[bk.key].forEach(s => registeredNameSet.add(normName(s.name))));
+            const rosterNameSet = new Set(info.roster.map(r => normName(r.name)));
+
+            // Differences: paid/pending/waived students on the roster vs. not
+            const heldNames = new Set();
+            ['paid', 'pending', 'waived'].forEach(k => registeredByStatus[k].forEach(s => heldNames.add(normName(s.name))));
+            const onRosterNotRegistered = info.roster.filter(r => !heldNames.has(normName(r.name)));
+            const registeredNotOnRoster = [];
+            ['paid', 'pending', 'waived'].forEach(k => registeredByStatus[k].forEach(s => {
+                if (!rosterNameSet.has(normName(s.name))) registeredNotOnRoster.push(s);
+            }));
+
+            // A registered student is a "gap" when they don't show up on the
+            // roster under this class tag. Refunded payments don't need a
+            // roster match, so we only mark the active buckets.
+            const isRegisteredGap = (name) => !rosterNameSet.has(normName(name));
+
+            const regByCourseHtml = info.courses.length
+                ? info.courses.map(c => {
+                    const b = _buildCourseBuckets(c.id);
+                    const rowBuckets = _PAY_BUCKETS.map(bk => {
+                        const list = b[bk.key];
+                        if (!list.length) return '';
+                        // Don't flag refunded students — they dropped, so a missing
+                        // roster entry is expected, not a gap.
+                        const hl = bk.key === 'refunded' ? null : isRegisteredGap;
+                        return `
+                            <div style="margin-top:0.3rem;">
+                                <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.15rem;">
+                                    <span class="en-status-badge ${bk.cls}">${bk.label}</span>
+                                    <span style="font-size:0.75rem;color:var(--text-secondary);">${list.length}</span>
+                                </div>
+                                <div style="background:var(--bg-panel);border:1px solid var(--border-color-light);border-radius:var(--radius-sm);">
+                                    ${_renderStudentList(list, '', hl)}
+                                </div>
+                            </div>`;
+                    }).join('');
+                    return `
+                        <div style="margin-top:0.5rem;padding:0.5rem 0.65rem;background:var(--bg-surface);border-radius:var(--radius-sm);">
+                            <div style="font-weight:600;font-size:0.9rem;">${escHtml(c.className)} <span style="color:var(--text-secondary);font-weight:400;font-size:0.78rem;">· ${escHtml(c.semester || '')}</span></div>
+                            ${rowBuckets || '<div style="font-size:0.75rem;color:var(--text-secondary);font-style:italic;margin-top:0.3rem;">No registrations yet.</div>'}
+                        </div>`;
+                }).join('')
+                : `<div style="font-size:0.78rem;color:var(--text-secondary);font-style:italic;">No courses linked to this class.</div>`;
+
+            // Roster rows that aren't held by an active registration get flagged.
+            const rosterHtml = info.roster.length
+                ? info.roster.map(r => {
+                    const gap = !heldNames.has(normName(r.name));
+                    const rowStyle = gap
+                        ? 'padding:0.3rem 0.5rem;border-bottom:1px solid var(--border-color-light);font-size:0.85rem;background:#fef3c7;border-left:3px solid #f59e0b;'
+                        : 'padding:0.3rem 0.5rem;border-bottom:1px solid var(--border-color-light);font-size:0.85rem;';
+                    const flag = gap ? '<span title="On roster but not actively registered" style="font-size:0.7rem;color:#92400e;font-weight:700;">⚠</span> ' : '';
+                    return `
+                    <div style="${rowStyle}">
+                        ${flag}<strong>${escHtml(r.name)}</strong>
+                        ${r.grade ? `<span style="color:var(--text-secondary);"> · Grade ${escHtml(r.grade)}</span>` : ''}
+                    </div>`;
+                }).join('')
+                : `<div style="font-size:0.78rem;color:var(--text-secondary);font-style:italic;padding:0.3rem 0.5rem;">Nobody in the student roster has this class tag.</div>`;
+
+            const diffHtml = (onRosterNotRegistered.length || registeredNotOnRoster.length) ? `
+                <div style="margin-top:0.5rem;padding:0.5rem 0.65rem;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:var(--radius-sm);">
+                    <div style="font-weight:700;font-size:0.82rem;color:#92400e;margin-bottom:0.2rem;">Reconciliation gaps</div>
+                    ${onRosterNotRegistered.length ? `<div style="font-size:0.8rem;color:#92400e;">On roster but not actively registered: <strong>${onRosterNotRegistered.map(r => escHtml(r.name)).join(', ')}</strong></div>` : ''}
+                    ${registeredNotOnRoster.length ? `<div style="font-size:0.8rem;color:#92400e;margin-top:0.2rem;">Registered but not on roster: <strong>${registeredNotOnRoster.map(s => escHtml(s.name)).join(', ')}</strong></div>` : ''}
+                </div>` : '';
+
+            return `
+                <div class="en-panel" style="margin-top:0.75rem;">
+                    <div style="font-weight:700;font-size:1rem;color:var(--text-main);">Class <span style="color:var(--primary-color);">${escHtml(cls)}</span></div>
+                    <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:0.15rem;">${info.courses.length} linked course${info.courses.length !== 1 ? 's' : ''} · ${info.roster.length} on roster</div>
+                    ${diffHtml}
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-top:0.5rem;">
+                        <div>
+                            <div style="font-weight:700;font-size:0.82rem;color:var(--text-main);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:0.25rem;">Registered via linked courses</div>
+                            ${regByCourseHtml}
+                        </div>
+                        <div>
+                            <div style="font-weight:700;font-size:0.82rem;color:var(--text-main);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:0.25rem;">On student roster (${escHtml(cls)})</div>
+                            <div style="background:var(--bg-panel);border:1px solid var(--border-color-light);border-radius:var(--radius-sm);">
+                                ${rosterHtml}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    function renderReconcile() {
+        renderReconcileByCourse();
+        renderReconcileByClass();
+    }
+
+    loadAll();
+</script>
+
+</body>
+</html>

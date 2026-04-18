@@ -4,7 +4,7 @@
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-import { getFirestore, collection, doc, getDocs, getDoc, setDoc, deleteDoc, addDoc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+import { getFirestore, collection, doc, getDocs, getDoc, setDoc, deleteDoc, addDoc, updateDoc, query, where, increment } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBwc-NTAGSo9KXns_kc_kDYorBd4DAMSzI",
@@ -211,6 +211,57 @@ window.fbFindParentByEmail = async function(email) {
 
 window.fbRemoveParent = async function(docId) {
     return await deleteDoc(doc(db, 'parents', docId));
+};
+
+// ========== ENROLLMENT: COURSES ==========
+
+window.fbGetCourses = async function() {
+    const snap = await getDocs(collection(db, 'courses'));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+window.fbSaveCourse = async function(courseId, courseData) {
+    return await setDoc(doc(db, 'courses', courseId), courseData);
+};
+
+window.fbDeleteCourse = async function(courseId) {
+    return await deleteDoc(doc(db, 'courses', courseId));
+};
+
+// Atomic enrollment counter. delta is +1 on new registration and when
+// un-refunding; -1 when moving to refunded or deleting a held spot.
+window.fbIncrementCourseEnrollment = async function(courseId, delta) {
+    return await updateDoc(doc(db, 'courses', courseId), { enrolledCount: increment(delta) });
+};
+
+// ========== SITE SETTINGS (singleton doc for public pages) ==========
+
+window.fbGetSiteSettings = async function() {
+    const snap = await getDoc(doc(db, 'siteSettings', 'config'));
+    return snap.exists() ? snap.data() : null;
+};
+
+window.fbSaveSiteSettings = async function(data) {
+    return await setDoc(doc(db, 'siteSettings', 'config'), data);
+};
+
+// ========== ENROLLMENT: REGISTRATIONS ==========
+
+window.fbGetRegistrations = async function() {
+    const snap = await getDocs(collection(db, 'registrations'));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+window.fbAddRegistration = async function(registration) {
+    return await addDoc(collection(db, 'registrations'), registration);
+};
+
+window.fbUpdateRegistration = async function(docId, updates) {
+    return await updateDoc(doc(db, 'registrations', docId), updates);
+};
+
+window.fbDeleteRegistration = async function(docId) {
+    return await deleteDoc(doc(db, 'registrations', docId));
 };
 
 // Signal that Firebase is ready

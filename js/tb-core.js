@@ -17,6 +17,7 @@ const TBState = {
     drawing: false,
     skillData: [],
     savedSkillsCache: null,
+    expandedSavedSkills: new Set(),
     currentTestId: null,
     aiFileB64: null,
     aiFileMime: null
@@ -1278,11 +1279,14 @@ function tbRenderSavedSkills() {
         return;
     }
     var gradeLabel = function(g) { return g === 'algebra1' ? 'Alg1' : 'G' + g; };
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+    function escAttr(s) { return esc(s).replace(/'/g, '&#39;'); }
     list.innerHTML = skills.map(function(s) {
         var displayName = s.name || skillName(s.type) || s.type || 'Untitled';
-        var qCount = (s.questions && s.questions.length) || 1;
-        var hasDynamic = s.variableDescriptor || (s.questions && s.questions.some(function(q) { return q.variableDescriptor; }));
-        var firstQ = (s.questions && s.questions[0]) ? s.questions[0].text : (s.questionText || '');
+        var qs = (s.questions && s.questions.length) ? s.questions : null;
+        var qCount = qs ? qs.length : 1;
+        var hasDynamic = s.variableDescriptor || (qs && qs.some(function(q) { return q.variableDescriptor; }));
+        var firstQ = qs ? (qs[0].text || '') : (s.questionText || '');
         var preview = (firstQ || '').replace(/<[^>]+>/g, '').slice(0, 55) + ((firstQ || '').length > 55 ? '...' : '');
         var tag = '<span class="tb-skill-grade">' + gradeLabel(s.grade || '?') + ' &middot; ' + (s.category || 'pssa').toUpperCase() + '</span>';
         var metaBits = [];
@@ -1291,17 +1295,49 @@ function tbRenderSavedSkills() {
         if (s.anchor) metaBits.push(s.anchor);
         var metaTag = metaBits.length ? '<span class="tb-skill-grade">' + metaBits.join(' &middot; ') + '</span>' : '';
         var dynTag = hasDynamic ? '<span class="tb-skill-grade" style="color:var(--primary-color);border-color:var(--primary-color);">Dynamic</span>' : '';
+        var isExpanded = TBState.expandedSavedSkills.has(s.id);
+        var pickDisabled = qCount <= 1 ? 'disabled style="opacity:0.45;cursor:not-allowed;"' : '';
+        var pickLabel = isExpanded ? '▾ Hide' : '▸ Pick…';
+
+        var expandedHtml = '';
+        if (isExpanded && qs) {
+            expandedHtml = '<div style="width:100%;margin-top:0.35rem;border-top:1px solid var(--border-color-light);padding-top:0.4rem;display:flex;flex-direction:column;gap:0.25rem;">' +
+                qs.map(function(q, i) {
+                    var qText = (q.text || '').replace(/<[^>]+>/g, '').trim();
+                    if (qText.length > 80) qText = qText.slice(0, 80) + '…';
+                    var typeBadge = q.openEnded
+                        ? '<span style="font-size:0.6rem;padding:0.05rem 0.3rem;border-radius:3px;background:var(--bg-surface);border:1px solid var(--border-color);color:var(--text-secondary);">OE</span>'
+                        : '<span style="font-size:0.6rem;padding:0.05rem 0.3rem;border-radius:3px;background:var(--bg-surface);border:1px solid var(--border-color);color:var(--text-secondary);">MC</span>';
+                    return '<div style="display:flex;align-items:center;gap:0.4rem;padding:0.25rem 0.35rem;background:var(--bg-surface);border:1px solid var(--border-color-light);border-radius:4px;">' +
+                        '<span style="font-size:0.7rem;font-weight:700;color:var(--text-secondary);min-width:22px;">Q' + (i + 1) + '</span>' +
+                        typeBadge +
+                        '<span style="flex:1;min-width:0;font-size:0.78rem;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escAttr(q.text || '') + '">' + esc(qText || '(empty)') + '</span>' +
+                        '<button class="tb-skill-add" onclick="tbAddFromSaved(\'' + s.id + '\', ' + i + ')" style="padding:0.1rem 0.4rem;font-size:0.68rem;">+ Add</button>' +
+                        '</div>';
+                }).join('') +
+                '</div>';
+        }
+
         return '<div class="tb-skill-row" style="flex-direction:column;align-items:flex-start;gap:0.15rem;cursor:default;">' +
             '<div style="display:flex;align-items:center;gap:0.4rem;width:100%;">' +
             '<span class="tb-skill-name">' + displayName + '</span>' +
             tag + metaTag + dynTag +
             '<span class="tb-skill-count">' + qCount + 'Q</span></div>' +
             (preview ? '<div style="font-size:0.7rem;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;">' + preview + '</div>' : '') +
-            '<div style="display:flex;align-items:center;gap:0.3rem;margin-top:0.2rem;">' +
+            '<div style="display:flex;align-items:center;gap:0.3rem;margin-top:0.2rem;flex-wrap:wrap;">' +
             '<input type="number" id="saved-qty-' + s.id + '" value="' + qCount + '" min="1" max="50" style="width:45px;padding:0.15rem 0.3rem;border:1px solid var(--border-color);border-radius:4px;font-size:0.75rem;text-align:center;">' +
-            '<button class="tb-skill-add" onclick="tbAddAllFromSaved(\'' + s.id + '\')">+ Add</button></div>' +
+            '<button class="tb-skill-add" onclick="tbAddAllFromSaved(\'' + s.id + '\')" title="Add the quantity shown — cycles through all questions in the bank">+ Add</button>' +
+            '<button class="tb-skill-add" ' + pickDisabled + ' onclick="tbTogglePickFromSaved(\'' + s.id + '\')" title="Pick specific questions to add">' + pickLabel + '</button>' +
+            '</div>' +
+            expandedHtml +
             '</div>';
     }).join('');
+}
+
+function tbTogglePickFromSaved(id) {
+    if (TBState.expandedSavedSkills.has(id)) TBState.expandedSavedSkills.delete(id);
+    else TBState.expandedSavedSkills.add(id);
+    tbRenderSavedSkills();
 }
 
 /**

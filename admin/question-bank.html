@@ -114,8 +114,70 @@
                 </div>
             </div>
 
-            <button class="btn" onclick="qbGenerateAI()" style="width:100%;padding:0.45rem;">Generate with AI</button>
+            <div style="display:flex;gap:0.4rem;">
+                <button class="btn" onclick="qbGenerateSampleAI()" style="flex:1;padding:0.45rem;" title="Generate one sample. Format it (bold/italic/line breaks), then have AI produce the rest in the same style.">Sample First, Format, Then Rest</button>
+                <button class="btn" onclick="qbGenerateAI()" style="flex:1;padding:0.45rem;background:var(--bg-surface);color:var(--primary-color);border:1px solid var(--primary-color);" title="Skip the formatting step — generate all N at once.">Generate All at Once</button>
+            </div>
             <span id="qb-ai-status" class="admin-status"></span>
+
+            <!-- Sample editor — only visible after "Generate Sample" completes -->
+            <div id="qb-ai-sample-panel" style="display:none;margin-top:0.75rem;padding:0.75rem;background:var(--bg-surface);border:1px solid var(--primary-color);border-radius:var(--radius-sm);">
+                <div style="font-weight:700;font-size:0.78rem;color:var(--primary-color);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:0.3rem;">Sample — format as you want, then generate the rest</div>
+                <p style="font-size:0.75rem;color:var(--text-secondary);margin:0 0 0.5rem;">Select text in the question box and click B / I to format. Use ↵ Line to insert a line break. The AI will match your formatting style when generating the remaining questions.</p>
+
+                <div style="display:flex;gap:0.3rem;margin-bottom:0.3rem;flex-wrap:wrap;align-items:center;">
+                    <button type="button" class="admin-btn" onclick="qbApplySampleFormat('bold')" title="Bold (or Ctrl/Cmd+B)"><b>B</b></button>
+                    <button type="button" class="admin-btn" onclick="qbApplySampleFormat('italic')" title="Italic (or Ctrl/Cmd+I)"><i>I</i></button>
+                    <button type="button" class="admin-btn" onclick="qbApplySampleFormat('underline')" title="Underline"><u>U</u></button>
+                    <button type="button" class="admin-btn" onclick="qbApplySampleFormat('linebreak')" title="Insert a line break">&#8629; Line</button>
+                    <button type="button" class="admin-btn" onclick="qbApplySampleFormat('clear')" title="Remove all formatting">Clear formatting</button>
+                    <span style="width:1px;height:20px;background:var(--border-color);margin:0 0.2rem;"></span>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&radic;( )')" title="Square root">&radic;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&#8731;( )')" title="Cube root">&#8731;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&sup2;')" title="Squared">x&sup2;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&sup3;')" title="Cubed">x&sup3;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('^( )')" title="Exponent (renders as superscript)">x<sup>n</sup></button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('/')" title="Fraction — type 3/4 to render as a fraction">a/b</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&pi;')" title="Pi">&pi;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&infin;')" title="Infinity">&infin;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&deg;')" title="Degrees">&deg;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&times;')" title="Multiply">&times;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&divide;')" title="Divide">&divide;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&plusmn;')" title="Plus-minus">&plusmn;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&le;')" title="Less or equal">&le;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&ge;')" title="Greater or equal">&ge;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&ne;')" title="Not equal">&ne;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('&theta;')" title="Theta">&theta;</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('sin(')" title="sine">sin</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('cos(')" title="cosine">cos</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('tan(')" title="tangent">tan</button>
+                    <button type="button" class="admin-btn" onclick="qbSampleInsert('log(')" title="log">log</button>
+                </div>
+
+                <span class="admin-label">Question</span>
+                <div id="qb-ai-sample-q" contenteditable="true" class="admin-textarea" style="min-height:70px;padding:0.5rem 0.6rem;"></div>
+
+                <div id="qb-ai-sample-mc" style="display:none;margin-top:0.4rem;">
+                    <span class="admin-label">Options (pick the correct one)</span>
+                    <div id="qb-ai-sample-opts"></div>
+                </div>
+                <div id="qb-ai-sample-oe" style="display:none;margin-top:0.4rem;">
+                    <span class="admin-label">Answer</span>
+                    <input type="text" id="qb-ai-sample-answer" class="admin-input">
+                </div>
+
+                <span class="admin-label">Guide / Rationale (optional)</span>
+                <input type="text" id="qb-ai-sample-guide" class="admin-input">
+
+                <!-- Visual aid UI gets mounted here by qbRenderSampleVisualUI -->
+                <div id="qb-ai-sample-visual" style="margin-top:0.75rem;border-top:1px solid var(--border-color-light);padding-top:0.6rem;"></div>
+
+                <div style="display:flex;gap:0.4rem;margin-top:0.6rem;flex-wrap:wrap;">
+                    <button class="btn" onclick="qbGenerateRestAI()">Use this format &amp; generate the rest</button>
+                    <button class="admin-btn" onclick="qbCancelSample()">Cancel</button>
+                </div>
+                <span id="qb-ai-sample-status" class="admin-status"></span>
+            </div>
 
             <div id="qb-ai-preview" class="admin-q-list"></div>
             <div id="qb-ai-ve"></div>
@@ -383,6 +445,6 @@
 <!-- Variable editor component -->
 <script src="../js/variable-editor.js?v=20260426"></script>
 <!-- Question Bank core logic -->
-<script src="../js/qb-core.js?v=20260418a"></script>
+<script src="../js/qb-core.js?v=20260418i"></script>
 </body>
 </html>

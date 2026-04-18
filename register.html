@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Registration</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        body { background: var(--bg-page); margin: 0; padding: 0; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; }
+        .reg-wrap { max-width: 720px; width: 100%; padding: 1.5rem 1rem; }
+        .reg-card { background: var(--bg-panel); border: 1px solid var(--border-color-light); border-radius: var(--radius-md); padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .reg-card h1 { margin: 0 0 0.25rem; font-size: 1.5rem; color: var(--primary-color); }
+        .reg-sub { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.25rem; }
+        .reg-row { margin-bottom: 0.9rem; }
+        .reg-row label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 0.25rem; }
+        .reg-row input, .reg-row textarea { width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-size: 0.95rem; font-family: inherit; background: var(--bg-panel); color: var(--text-main); box-sizing: border-box; }
+        .reg-row textarea { min-height: 60px; resize: vertical; }
+        .course-list { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.25rem; }
+        .course-opt { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; background: var(--bg-panel); }
+        .course-opt:hover { border-color: var(--primary-color); background: var(--bg-highlight); }
+        .course-opt.checked { border-color: var(--primary-color); background: var(--primary-light); }
+        .course-opt input { margin-top: 0.15rem; }
+        .course-opt-body { flex: 1; }
+        .course-opt-title { font-weight: 700; font-size: 0.95rem; color: var(--text-main); }
+        .course-opt-meta { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; }
+        .course-opt-fee { font-weight: 700; color: var(--primary-color); white-space: nowrap; }
+        .course-opt.full { opacity: 0.55; cursor: not-allowed; background: var(--bg-surface); }
+        .course-opt.full:hover { border-color: var(--border-color); background: var(--bg-surface); }
+        .course-opt-badge { display: inline-block; font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 99px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-left: 0.35rem; }
+        .course-opt-badge.full { background: #fee2e2; color: #991b1b; }
+        .course-opt-badge.few { background: #fef3c7; color: #92400e; }
+        .reg-total { margin-top: 0.75rem; padding: 0.6rem 0.75rem; background: var(--bg-surface); border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center; }
+        .reg-total-label { font-size: 0.85rem; color: var(--text-secondary); font-weight: 600; }
+        .reg-total-value { font-size: 1.1rem; font-weight: 700; color: var(--primary-color); }
+        .reg-btn { width: 100%; margin-top: 1rem; padding: 0.7rem; font-size: 1rem; font-weight: 600; background: var(--primary-color); color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer; transition: opacity 0.15s; }
+        .reg-btn:hover:not(:disabled) { opacity: 0.9; }
+        .reg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .reg-status { margin-top: 0.75rem; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.9rem; }
+        .reg-status.ok { background: var(--correct-bg); color: var(--correct); border: 1px solid var(--correct); }
+        .reg-status.err { background: var(--incorrect-bg); color: var(--incorrect); border: 1px solid var(--incorrect); }
+        .reg-empty { color: var(--text-secondary); font-size: 0.9rem; padding: 0.75rem; text-align: center; border: 1px dashed var(--border-color); border-radius: var(--radius-sm); }
+        .reg-success { text-align: center; padding: 2rem 1rem; }
+        .reg-success h2 { color: var(--correct); margin-bottom: 0.5rem; }
+        .reg-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+        @media (max-width: 520px) { .reg-grid-2 { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div class="reg-wrap">
+    <div class="reg-card" id="reg-card">
+        <h1 id="reg-heading">Course Registration</h1>
+        <p class="reg-sub" id="reg-subheading">Select the courses you want to register for. You can pick more than one. Payment instructions are below.</p>
+
+        <div id="reg-banner" style="display:none;white-space:pre-wrap;padding:1rem 1.2rem;background:linear-gradient(135deg, color-mix(in srgb, var(--primary-color) 12%, var(--bg-surface)), var(--bg-surface));border-left:5px solid var(--primary-color);border-radius:0 var(--radius-md) var(--radius-md) 0;margin-bottom:1rem;font-size:1.05rem;font-weight:600;line-height:1.5;color:var(--text-main);box-shadow:0 1px 3px rgba(0,0,0,0.04);"></div>
+        <div id="reg-instructions" style="display:none;white-space:pre-wrap;padding:0.75rem 0.9rem;background:var(--bg-surface);border:1px solid var(--border-color-light);border-radius:var(--radius-sm);margin-bottom:1rem;font-size:0.92rem;line-height:1.5;color:var(--text-main);"></div>
+
+        <form id="reg-form" onsubmit="event.preventDefault(); submitRegistration();">
+            <div class="reg-row">
+                <label>Available Courses</label>
+                <div id="course-list" class="course-list">
+                    <div class="reg-empty">Loading courses…</div>
+                </div>
+                <div id="reg-total" class="reg-total" style="display:none;">
+                    <span class="reg-total-label">Total</span>
+                    <span class="reg-total-value" id="reg-total-value">$0</span>
+                </div>
+            </div>
+
+            <div class="reg-grid-2">
+                <div class="reg-row">
+                    <label>Student Name *</label>
+                    <input type="text" id="reg-student" required autocomplete="name">
+                </div>
+                <div class="reg-row">
+                    <label>Parent / Guardian Name</label>
+                    <input type="text" id="reg-parent" autocomplete="name">
+                </div>
+            </div>
+
+            <div class="reg-grid-2">
+                <div class="reg-row">
+                    <label>Email *</label>
+                    <input type="email" id="reg-email" required autocomplete="email">
+                </div>
+                <div class="reg-row">
+                    <label>Phone</label>
+                    <input type="tel" id="reg-phone" autocomplete="tel">
+                </div>
+            </div>
+
+            <div class="reg-row">
+                <label>Zelle Confirmation # <span style="font-weight:400;text-transform:none;color:var(--text-secondary);">(optional — paste here if you've already sent payment)</span></label>
+                <input type="text" id="reg-zelle" autocomplete="off" placeholder="e.g. ABC123XYZ">
+            </div>
+
+            <div class="reg-row">
+                <label>Notes (optional)</label>
+                <textarea id="reg-note" placeholder="Anything we should know — preferred schedule, experience level, questions…"></textarea>
+            </div>
+
+            <button type="submit" class="reg-btn" id="reg-submit" disabled>Submit Registration</button>
+            <div id="reg-status" class="reg-status" style="display:none;"></div>
+        </form>
+    </div>
+
+    <div class="reg-card" id="reg-success" style="display:none;">
+        <div class="reg-success">
+            <h2>&#10003; Registration Received</h2>
+            <p style="color:var(--text-secondary);margin-bottom:0.5rem;">Thanks, <strong id="success-name"></strong>! We've recorded your registration for:</p>
+            <div id="success-courses" style="margin:1rem 0;padding:0.75rem;background:var(--bg-surface);border-radius:var(--radius-sm);text-align:left;"></div>
+            <p style="color:var(--text-secondary);font-size:0.9rem;">Payment instructions will be sent to <strong id="success-email"></strong>. Your spot is held pending payment.</p>
+            <button class="reg-btn" style="margin-top:1.5rem;max-width:240px;" onclick="location.reload()">Register Another Student</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/firebase-config.js?v=20260418d" type="module"></script>
+<script>
+    let availableCourses = [];
+    const selectedCourses = new Set();
+
+    function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    function formatDateRange(start, end) {
+        const fmt = d => d ? new Date(d + 'T12:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+        if (start && end) return fmt(start) + ' — ' + fmt(end);
+        return fmt(start) || fmt(end) || '';
+    }
+
+    function formatFee(n) {
+        const num = Number(n);
+        if (!isFinite(num)) return '$0';
+        return '$' + num.toFixed(num % 1 === 0 ? 0 : 2);
+    }
+
+    function applySiteSettings(s) {
+        if (!s) return;
+        if (s.heading) document.getElementById('reg-heading').textContent = s.heading;
+        // Registration page only shows its own dedicated banner (payment
+        // instructions). The shared courses-page banner is intentionally not
+        // rendered here.
+        const banner = document.getElementById('reg-banner');
+        if (s.registrationBanner) {
+            banner.textContent = s.registrationBanner;
+            banner.style.display = 'block';
+        }
+        const instructions = document.getElementById('reg-instructions');
+        if (s.instructions) {
+            instructions.textContent = s.instructions;
+            instructions.style.display = 'block';
+        }
+    }
+
+    function getPreselectedCourseId() {
+        try {
+            return new URLSearchParams(location.search).get('course') || '';
+        } catch (e) { return ''; }
+    }
+
+    async function loadCourses() {
+        const listEl = document.getElementById('course-list');
+        try {
+            let retries = 0;
+            while (typeof window.fbGetCourses !== 'function' && retries++ < 30) {
+                await new Promise(r => setTimeout(r, 200));
+            }
+            if (typeof window.fbGetCourses !== 'function') {
+                listEl.innerHTML = '<div class="reg-empty">Couldn\'t reach the database. Refresh and try again.</div>';
+                return;
+            }
+            const [courses, settings] = await Promise.all([
+                window.fbGetCourses(),
+                window.fbGetSiteSettings ? window.fbGetSiteSettings() : Promise.resolve(null)
+            ]);
+            applySiteSettings(settings);
+            availableCourses = courses.filter(c => c.registrationOpen !== false)
+                .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+
+            // Pre-select a course if ?course=<id> is in the URL and that
+            // course is currently open and not full.
+            const preId = getPreselectedCourseId();
+            if (preId) {
+                const target = availableCourses.find(c => c.id === preId);
+                if (target && !courseCapacityInfo(target).full) selectedCourses.add(preId);
+            }
+
+            renderCourses();
+        } catch (e) {
+            listEl.innerHTML = '<div class="reg-empty">Error loading courses: ' + escHtml(e.message) + '</div>';
+        }
+    }
+
+    function courseCapacityInfo(c) {
+        const cap = Number(c.capacity) || 0;
+        const enrolled = Number(c.enrolledCount) || 0;
+        if (cap <= 0) return { cap: 0, enrolled, spotsLeft: Infinity, full: false };
+        const spotsLeft = Math.max(0, cap - enrolled);
+        return { cap, enrolled, spotsLeft, full: spotsLeft === 0 };
+    }
+
+    function renderCourses() {
+        const listEl = document.getElementById('course-list');
+        if (!availableCourses.length) {
+            listEl.innerHTML = '<div class="reg-empty">No courses are open for registration right now.</div>';
+            document.getElementById('reg-submit').disabled = true;
+            return;
+        }
+        listEl.innerHTML = availableCourses.map(c => {
+            const info = courseCapacityInfo(c);
+            const checked = selectedCourses.has(c.id);
+            let badge = '';
+            if (info.cap > 0) {
+                if (info.full) badge = '<span class="course-opt-badge full">Full</span>';
+                else if (info.spotsLeft <= 3) badge = `<span class="course-opt-badge few">${info.spotsLeft} spot${info.spotsLeft !== 1 ? 's' : ''} left</span>`;
+                else badge = `<span style="color:var(--text-secondary);font-size:0.72rem;margin-left:0.4rem;">${info.spotsLeft} spots left</span>`;
+            }
+            const disabledAttr = info.full ? 'disabled' : '';
+            return `
+                <label class="course-opt ${checked ? 'checked' : ''} ${info.full ? 'full' : ''}" data-id="${escHtml(c.id)}">
+                    <input type="checkbox" ${checked ? 'checked' : ''} ${disabledAttr} onchange="toggleCourse('${escHtml(c.id)}', this.checked)">
+                    <div class="course-opt-body">
+                        <div class="course-opt-title">${escHtml(c.className || 'Course')} <span style="color:var(--text-secondary);font-weight:400;font-size:0.85rem;">· ${escHtml(c.semester || '')}</span>${badge}</div>
+                        <div class="course-opt-meta">${escHtml(formatDateRange(c.startDate, c.endDate))}</div>
+                    </div>
+                    <div class="course-opt-fee">${formatFee(c.fee)}</div>
+                </label>`;
+        }).join('');
+        updateTotal();
+    }
+
+    function toggleCourse(id, checked) {
+        const c = availableCourses.find(x => x.id === id);
+        if (c && courseCapacityInfo(c).full) {
+            // Safety net — shouldn't happen since input is disabled, but guard anyway.
+            selectedCourses.delete(id);
+        } else if (checked) {
+            selectedCourses.add(id);
+        } else {
+            selectedCourses.delete(id);
+        }
+        document.querySelectorAll('.course-opt').forEach(el => {
+            el.classList.toggle('checked', selectedCourses.has(el.dataset.id));
+        });
+        updateTotal();
+    }
+
+    function updateTotal() {
+        const total = availableCourses
+            .filter(c => selectedCourses.has(c.id))
+            .reduce((sum, c) => sum + (Number(c.fee) || 0), 0);
+        const totalEl = document.getElementById('reg-total');
+        const valEl = document.getElementById('reg-total-value');
+        if (selectedCourses.size > 0) {
+            totalEl.style.display = 'flex';
+            valEl.textContent = formatFee(total);
+        } else {
+            totalEl.style.display = 'none';
+        }
+        document.getElementById('reg-submit').disabled = selectedCourses.size === 0;
+    }
+
+    async function submitRegistration() {
+        const student = document.getElementById('reg-student').value.trim();
+        const parent = document.getElementById('reg-parent').value.trim();
+        const email = document.getElementById('reg-email').value.trim();
+        const phone = document.getElementById('reg-phone').value.trim();
+        const zelleConfirmation = document.getElementById('reg-zelle').value.trim();
+        const note = document.getElementById('reg-note').value.trim();
+        const statusEl = document.getElementById('reg-status');
+        const btn = document.getElementById('reg-submit');
+
+        if (!student || !email || selectedCourses.size === 0) {
+            statusEl.textContent = 'Please fill in the required fields and select at least one course.';
+            statusEl.className = 'reg-status err';
+            statusEl.style.display = 'block';
+            return;
+        }
+
+        const chosen = availableCourses.filter(c => selectedCourses.has(c.id));
+        const payments = {};
+        chosen.forEach(c => {
+            payments[c.id] = {
+                status: 'pending',
+                amount: Number(c.fee) || 0,
+                paidAt: null,
+                adminNote: '',
+                courseSnapshot: { className: c.className, semester: c.semester, startDate: c.startDate, endDate: c.endDate }
+            };
+        });
+
+        const registration = {
+            studentName: student,
+            parentName: parent,
+            email: email,
+            phone: phone,
+            zelleConfirmation: zelleConfirmation,
+            note: note,
+            courseIds: chosen.map(c => c.id),
+            payments: payments,
+            totalAmount: chosen.reduce((s, c) => s + (Number(c.fee) || 0), 0),
+            registeredAt: new Date().toISOString()
+        };
+
+        btn.disabled = true;
+        btn.textContent = 'Submitting…';
+        statusEl.style.display = 'none';
+
+        try {
+            // Re-check capacity against a fresh read so a course that filled
+            // up while the form sat idle rejects cleanly instead of overbooking.
+            const [fresh, existing] = await Promise.all([
+                window.fbGetCourses(),
+                window.fbGetRegistrations ? window.fbGetRegistrations() : Promise.resolve([])
+            ]);
+            const byId = {};
+            fresh.forEach(f => { byId[f.id] = f; });
+            const nowFull = chosen.filter(c => {
+                const latest = byId[c.id];
+                if (!latest) return true; // deleted course
+                return courseCapacityInfo(latest).full;
+            });
+            if (nowFull.length) {
+                statusEl.textContent = 'Sorry — the following filled up while you were registering: ' + nowFull.map(c => c.className).join(', ') + '. Please refresh and pick different courses.';
+                statusEl.className = 'reg-status err';
+                statusEl.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Submit Registration';
+                return;
+            }
+
+            // Duplicate check: same student name + same course, where the
+            // existing registration is still active (not voided, course
+            // payment not refunded). Compared case-insensitively with
+            // collapsed whitespace so "John  Doe" matches "john doe".
+            const normName = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+            const studentNorm = normName(student);
+            const dupes = [];
+            chosen.forEach(c => {
+                const hit = existing.find(r => {
+                    if (r.voided) return false;
+                    if (normName(r.studentName) !== studentNorm) return false;
+                    if (!(r.courseIds || []).includes(c.id)) return false;
+                    const pay = (r.payments && r.payments[c.id]) || {};
+                    if (pay.status === 'refunded') return false;
+                    return true;
+                });
+                if (hit) dupes.push(c.className);
+            });
+            if (dupes.length) {
+                statusEl.textContent = student + ' is already registered for: ' + dupes.join(', ') + '. If this is a mistake, contact us to have it fixed.';
+                statusEl.className = 'reg-status err';
+                statusEl.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Submit Registration';
+                return;
+            }
+
+            await window.fbAddRegistration(registration);
+            // Best-effort counter increments. If one fails, the admin can Recount.
+            await Promise.all(chosen.map(c =>
+                window.fbIncrementCourseEnrollment(c.id, 1).catch(() => {})
+            ));
+
+            document.getElementById('reg-card').style.display = 'none';
+            document.getElementById('reg-success').style.display = 'block';
+            document.getElementById('success-name').textContent = student;
+            document.getElementById('success-email').textContent = email;
+            document.getElementById('success-courses').innerHTML = chosen.map(c =>
+                `<div style="padding:0.35rem 0;border-bottom:1px solid var(--border-color-light);display:flex;justify-content:space-between;">
+                    <span><strong>${escHtml(c.className)}</strong> · ${escHtml(c.semester || '')}</span>
+                    <span style="color:var(--primary-color);font-weight:600;">${formatFee(c.fee)}</span>
+                </div>`).join('');
+        } catch (e) {
+            statusEl.textContent = 'Error saving registration: ' + (e.message || 'Please try again.');
+            statusEl.className = 'reg-status err';
+            statusEl.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Submit Registration';
+        }
+    }
+
+    loadCourses();
+</script>
+
+</body>
+</html>
