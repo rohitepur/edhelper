@@ -28,6 +28,16 @@ class VariableEditor {
     // Custom distractor expressions (empty = auto-generate)
     this.distractorExprs = [];
 
+    // Display format for the correct answer: { kind, places?, maxDenom? }
+    // kinds: 'auto' | 'integer' | 'decimal' | 'fraction' | 'percent' | 'currency'
+    this.answerFormat = { kind: 'auto' };
+    // Per-distractor format overrides (null = inherit from answerFormat)
+    this.distractorFormats = [];
+    // Optional descriptor-level constraint expression evaluated against the
+    // generated values. If it returns false the generator re-rolls. Example:
+    // "b !== 0 && a % b === 0" to force an integer quotient.
+    this.constraint = '';
+
     this.render();
   }
 
@@ -41,6 +51,9 @@ class VariableEditor {
     this.guideTemplate = guide || '';
     this.variables = {};
     this.varOrder = [];
+    this.answerFormat = { kind: 'auto' };
+    this.distractorFormats = [];
+    this.constraint = '';
 
     // If the text already has {{var}} syntax, parse them out
     this._detectVarsFromTemplates();
@@ -71,6 +84,9 @@ class VariableEditor {
       if (v.choices && v.choices.length) slot.choices = v.choices;
       if (v.expression) slot.expression = v.expression;
       if (v.label) slot.label = v.label;
+      if (Array.isArray(v.allowedValues) && v.allowedValues.length) {
+        slot.allowedValues = v.allowedValues.slice();
+      }
       if (v.kind === 'operator') {
         slot.operators = v.operators || ['+', '-', '*', '/'];
       }
@@ -93,7 +109,12 @@ class VariableEditor {
       guideTemplate: toIndexTemplate(this.guideTemplate),
       questionType: this.questionType,
       slots: slots,
-      operation: { type: 'user-defined' }
+      operation: { type: 'user-defined' },
+      answerFormat: Object.assign({}, this.answerFormat || { kind: 'auto' }),
+      distractorFormats: (this.distractorFormats || []).map(function (f) {
+        return f ? Object.assign({}, f) : null;
+      }),
+      constraint: (this.constraint || '').trim()
     };
   }
 
@@ -124,6 +145,7 @@ class VariableEditor {
           choices: src.choices || [],
           expression: src.expression || '',
           label: src.label || '',
+          allowedValues: Array.isArray(src.allowedValues) ? src.allowedValues.slice() : null,
           operators: src.operators || ['+', '-', '*', '/']
         };
       }
@@ -149,6 +171,13 @@ class VariableEditor {
     this.guideTemplate = toNameTemplate(descriptor.guideTemplate || '');
     this.questionType = descriptor.questionType || 'mc';
     this.distractorExprs = descriptor.distractorExprs || [];
+    this.answerFormat = descriptor.answerFormat && descriptor.answerFormat.kind
+      ? Object.assign({}, descriptor.answerFormat)
+      : { kind: 'auto' };
+    this.distractorFormats = Array.isArray(descriptor.distractorFormats)
+      ? descriptor.distractorFormats.map(function (f) { return f ? Object.assign({}, f) : null; })
+      : [];
+    this.constraint = typeof descriptor.constraint === 'string' ? descriptor.constraint : '';
 
     this.render();
     this.onChange();
@@ -188,6 +217,9 @@ class VariableEditor {
 
       // Guide / hint template
       tplSection.appendChild(this._buildTemplateField('Hint / Guide (optional)', 'guideTemplate', this.guideTemplate, 'e.g. Add {{a}} and {{b}} to get the answer'));
+
+      // Generation constraint (optional)
+      tplSection.appendChild(this._buildConstraintField());
     }
     c.appendChild(tplSection);
 
@@ -247,35 +279,34 @@ class VariableEditor {
     var self = this;
 
     // Track which input is focused so we insert into the right one
-    this._lastFocusedInput = null;
+    if (!this._lastFocusedInput) this._lastFocusedInput = null;
 
+    // Each symbol has a `display` insert (for question/hint) and/or an `expr`
+    // insert (for answer/distractor expressions). The click handler picks the
+    // right one based on the focused input's data-math-mode.
     var symbols = [
-      // Arithmetic display symbols (for question text)
-      { label: '\u00d7', insert: '\u00d7', title: 'Multiply' },
-      { label: '\u00f7', insert: '\u00f7', title: 'Divide' },
-      { label: '\u00b2', insert: '\u00b2', title: 'Squared' },
-      { label: '\u00b3', insert: '\u00b3', title: 'Cubed' },
-      { label: '\u221a', insert: '\u221a', title: 'Square root' },
-      { label: '\u03c0', insert: '\u03c0', title: 'Pi' },
-      { label: '\u00b0', insert: '\u00b0', title: 'Degrees' },
-      { label: '\u2264', insert: '\u2264', title: 'Less or equal' },
-      { label: '\u2265', insert: '\u2265', title: 'Greater or equal' },
-      { label: '\u2260', insert: '\u2260', title: 'Not equal' },
-      { label: '$', insert: '$', title: 'Dollar' },
-      { label: '%', insert: '%', title: 'Percent' },
+      { label: '\u00d7', display: '\u00d7', expr: '*', title: 'Multiply' },
+      { label: '\u00f7', display: '\u00f7', expr: '/', title: 'Divide' },
+      { label: '\u221a', display: '\u221a', expr: 'Math.sqrt(', title: 'Square root' },
+      { label: '\u03c0', display: '\u03c0', expr: 'Math.PI', title: 'Pi' },
+      { label: 'x\u207f', display: '^', expr: 'Math.pow(', title: 'Power (x\u207f)' },
+      { label: '\u00b2', display: '\u00b2', expr: '**2', title: 'Squared' },
+      { label: '\u00b3', display: '\u00b3', expr: '**3', title: 'Cubed' },
+      { label: '\u00b0', display: '\u00b0', title: 'Degrees' },
+      { label: '\u2264', display: '\u2264', title: 'Less or equal' },
+      { label: '\u2265', display: '\u2265', title: 'Greater or equal' },
+      { label: '\u2260', display: '\u2260', title: 'Not equal' },
+      { label: '$', display: '$', title: 'Dollar' },
+      { label: '%', display: '%', expr: '%', title: 'Percent / modulo' },
       { label: '|sep|' },
-      // Expression functions (for answer expression)
-      { label: 'sin', insert: 'Math.sin(', title: 'Sine (radians)' },
-      { label: 'cos', insert: 'Math.cos(', title: 'Cosine (radians)' },
-      { label: 'tan', insert: 'Math.tan(', title: 'Tangent (radians)' },
-      { label: 'abs', insert: 'Math.abs(', title: 'Absolute value' },
-      { label: '\u221a', insert: 'Math.sqrt(', title: 'Square root (expression)' },
-      { label: 'x\u207f', insert: 'Math.pow(', title: 'Power: Math.pow(base, exp)' },
-      { label: 'round', insert: 'Math.round(', title: 'Round to nearest integer' },
-      { label: 'floor', insert: 'Math.floor(', title: 'Round down' },
-      { label: 'ceil', insert: 'Math.ceil(', title: 'Round up' },
-      { label: '\u03c0', insert: 'Math.PI', title: 'Pi (3.14159...)' },
-      { label: '( )', insert: '()', title: 'Parentheses' }
+      { label: 'sin', expr: 'Math.sin(', title: 'Sine (radians)' },
+      { label: 'cos', expr: 'Math.cos(', title: 'Cosine (radians)' },
+      { label: 'tan', expr: 'Math.tan(', title: 'Tangent (radians)' },
+      { label: 'abs', expr: 'Math.abs(', title: 'Absolute value' },
+      { label: 'round', expr: 'Math.round(', title: 'Round to nearest integer' },
+      { label: 'floor', expr: 'Math.floor(', title: 'Round down' },
+      { label: 'ceil', expr: 'Math.ceil(', title: 'Round up' },
+      { label: '( )', display: '()', expr: '()', title: 'Parentheses' }
     ];
 
     symbols.forEach(function (sym) {
@@ -285,24 +316,32 @@ class VariableEditor {
         return;
       }
       var b = _el('button', 've-math-btn');
+      b.type = 'button';
       b.textContent = sym.label;
       b.title = sym.title || '';
+      // Visual hint for buttons that only make sense in one mode
+      if (sym.expr && !sym.display) b.setAttribute('data-only', 'expr');
+      else if (sym.display && !sym.expr) b.setAttribute('data-only', 'display');
       b.addEventListener('mousedown', function (e) {
         e.preventDefault(); // prevent stealing focus
       });
       b.addEventListener('click', function () {
         var target = self._lastFocusedInput;
-        if (!target) return;
-        var start = target.selectionStart || 0;
-        var end = target.selectionEnd || 0;
+        if (!target || !document.contains(target)) return;
+        var mode = target.getAttribute('data-math-mode') || 'display';
+        var insert = mode === 'expr' ? sym.expr : sym.display;
+        // Fall back to the other mode if the current mode has no insertion
+        if (insert == null) insert = mode === 'expr' ? sym.display : sym.expr;
+        if (insert == null) return;
+
+        var start = target.selectionStart != null ? target.selectionStart : target.value.length;
+        var end = target.selectionEnd != null ? target.selectionEnd : target.value.length;
         var val = target.value;
-        target.value = val.slice(0, start) + sym.insert + val.slice(end);
-        var newPos = start + sym.insert.length;
-        // Place cursor inside parentheses if applicable
-        if (sym.insert.endsWith('(')) newPos = start + sym.insert.length;
-        else if (sym.insert === '()') newPos = start + 1;
-        target.setSelectionRange(newPos, newPos);
+        target.value = val.slice(0, start) + insert + val.slice(end);
+        var newPos = start + insert.length;
+        if (insert === '()') newPos = start + 1;
         target.focus();
+        try { target.setSelectionRange(newPos, newPos); } catch (e) {}
         target.dispatchEvent(new Event('input', { bubbles: true }));
       });
       bar.appendChild(b);
@@ -311,9 +350,14 @@ class VariableEditor {
     return bar;
   }
 
-  _trackFocus(inputEl) {
+  _trackFocus(inputEl, mode) {
     var self = this;
+    inputEl.setAttribute('data-math-mode', mode || 'display');
     inputEl.addEventListener('focus', function () {
+      self._lastFocusedInput = inputEl;
+    });
+    // Also capture focusin so selection stays tracked even if focus() called elsewhere
+    inputEl.addEventListener('focusin', function () {
       self._lastFocusedInput = inputEl;
     });
   }
@@ -333,7 +377,8 @@ class VariableEditor {
     inp.style.height = Math.max(32, inp.scrollHeight) + 'px';
 
     var self = this;
-    this._trackFocus(inp);
+    // Question + hint templates are display-mode (Unicode symbols)
+    this._trackFocus(inp, 'display');
 
     var pendingRender = null;
     inp.addEventListener('input', function () {
@@ -371,6 +416,32 @@ class VariableEditor {
       self.onChange();
     });
     wrap.appendChild(inp);
+    return wrap;
+  }
+
+  _buildConstraintField() {
+    var wrap = _el('div', 've-tpl-field');
+    var lbl = _el('label', 've-tpl-label');
+    lbl.textContent = 'Generation constraint (optional)';
+    lbl.title = 'JS expression using variable names. Re-rolls values until this evaluates truthy. Leave empty for no constraint.';
+    wrap.appendChild(lbl);
+
+    var self = this;
+    var inp = _el('input', 've-answer-input');
+    inp.type = 'text';
+    inp.value = this.constraint || '';
+    inp.placeholder = 'e.g. b !== 0 && a % b === 0   or   a > b';
+    this._trackFocus(inp, 'expr');
+    inp.addEventListener('input', function () {
+      self.constraint = inp.value;
+      self.onChange();
+    });
+    wrap.appendChild(inp);
+
+    var hint = _el('div', 've-helper-text');
+    hint.textContent = 'Available: ' + this.varOrder.filter(function (n) { return n !== '_ans'; }).join(', ') +
+      ' | Operators: &&, ||, !, ===, !==, <, >, %';
+    wrap.appendChild(hint);
     return wrap;
   }
 
@@ -415,6 +486,7 @@ class VariableEditor {
 
     // Ensure at least 3 slots
     while (this.distractorExprs.length < 3) this.distractorExprs.push('');
+    while (this.distractorFormats.length < 3) this.distractorFormats.push(null);
 
     for (var i = 0; i < 3; i++) {
       (function (idx) {
@@ -427,13 +499,32 @@ class VariableEditor {
         inp.type = 'text';
         inp.value = self.distractorExprs[idx] || '';
         inp.placeholder = idx === 0 ? 'e.g. a - b  or  42' : idx === 1 ? 'e.g. a * b  or  slope' : 'e.g. a + b + 1  or  none';
-        self._trackFocus(inp);
+        self._trackFocus(inp, 'expr');
         inp.addEventListener('input', function () {
           self.distractorExprs[idx] = inp.value;
           self.onChange();
         });
         row.appendChild(inp);
         wrap.appendChild(row);
+
+        // Per-distractor format picker (null = inherit from answer)
+        var current = self.distractorFormats[idx] || { kind: 'inherit' };
+        var fmtRow = self._buildFormatPicker('Display as', current, function (fmt) {
+          self.distractorFormats[idx] = fmt.kind === 'inherit' ? null : fmt;
+          self.onChange();
+          self._generatePreview();
+        });
+        // Add an "inherit" option specifically for distractors
+        var sel = fmtRow.querySelector('.ve-format-kind');
+        if (sel && !sel.querySelector('option[value="inherit"]')) {
+          var inhOpt = document.createElement('option');
+          inhOpt.value = 'inherit';
+          inhOpt.textContent = 'inherit';
+          sel.insertBefore(inhOpt, sel.firstChild);
+          if (!self.distractorFormats[idx]) sel.value = 'inherit';
+        }
+        fmtRow.classList.add('ve-distractor-format');
+        wrap.appendChild(fmtRow);
       })(i);
     }
 
@@ -476,7 +567,7 @@ class VariableEditor {
       inp.type = 'text';
       inp.value = currentExpr;
       inp.placeholder = 'e.g. a + b, a * b, Math.sin(a), Math.pow(a, 2)';
-      self._trackFocus(inp);
+      self._trackFocus(inp, 'expr');
       inp.addEventListener('input', function () {
         currentExpr = inp.value;
         self._setAnswerExpression(currentExpr);
@@ -505,7 +596,7 @@ class VariableEditor {
       inp.type = 'text';
       inp.value = currentLiteral;
       inp.placeholder = 'Type the answer or use {{variable}}';
-      self._trackFocus(inp);
+      self._trackFocus(inp, 'display');
       inp.addEventListener('input', function () {
         currentLiteral = inp.value;
         // Remove any _ans computed variable
@@ -544,6 +635,71 @@ class VariableEditor {
     if (isExpression) showExprMode();
     else showLitMode();
 
+    // Format selector for the displayed answer value
+    wrap.appendChild(this._buildFormatPicker('Display as', this.answerFormat || { kind: 'auto' }, function (fmt) {
+      self.answerFormat = fmt;
+      self.onChange();
+      self._generatePreview();
+    }));
+
+    return wrap;
+  }
+
+  /**
+   * Build a compact "format" picker: kind dropdown + a contextual second input
+   * (decimal places or max denominator). Emits { kind, places?, maxDenom? }.
+   */
+  _buildFormatPicker(label, current, onChange) {
+    var wrap = _el('div', 've-format-picker');
+    var lbl = _el('span', 've-format-label');
+    lbl.textContent = label + ':';
+    wrap.appendChild(lbl);
+
+    var fmt = Object.assign({ kind: 'auto' }, current || {});
+
+    var kindSel = _selEl(
+      ['auto', 'integer', 'decimal', 'fraction', 'percent', 'currency'],
+      fmt.kind,
+      function (val) { fmt.kind = val; refreshExtra(); onChange(Object.assign({}, fmt)); }
+    );
+    kindSel.className = 've-format-kind';
+    wrap.appendChild(kindSel);
+
+    var extraSlot = _el('span', 've-format-extra');
+    wrap.appendChild(extraSlot);
+
+    function refreshExtra() {
+      extraSlot.innerHTML = '';
+      if (fmt.kind === 'decimal' || fmt.kind === 'percent') {
+        var placesInp = _el('input', 've-format-num');
+        placesInp.type = 'number';
+        placesInp.min = '0'; placesInp.max = '6';
+        placesInp.value = fmt.places != null ? fmt.places : (fmt.kind === 'decimal' ? 2 : 0);
+        placesInp.title = 'Decimal places';
+        placesInp.addEventListener('input', function () {
+          var p = parseInt(placesInp.value);
+          fmt.places = isNaN(p) ? 0 : Math.max(0, Math.min(6, p));
+          onChange(Object.assign({}, fmt));
+        });
+        extraSlot.appendChild(document.createTextNode(' places '));
+        extraSlot.appendChild(placesInp);
+      } else if (fmt.kind === 'fraction') {
+        var denInp = _el('input', 've-format-num');
+        denInp.type = 'number';
+        denInp.min = '2'; denInp.max = '1000';
+        denInp.value = fmt.maxDenom != null ? fmt.maxDenom : 100;
+        denInp.title = 'Maximum denominator (fallback only; a / b expressions produce exact fractions regardless)';
+        denInp.addEventListener('input', function () {
+          var d = parseInt(denInp.value);
+          fmt.maxDenom = isNaN(d) ? 100 : Math.max(2, Math.min(1000, d));
+          onChange(Object.assign({}, fmt));
+        });
+        extraSlot.appendChild(document.createTextNode(' max denom '));
+        extraSlot.appendChild(denInp);
+      }
+    }
+
+    refreshExtra();
     return wrap;
   }
 
@@ -661,7 +817,7 @@ class VariableEditor {
       var exprRow = this._fieldRow('Expression', v.expression || '', function (val) {
         v.expression = val;
         self.onChange();
-      });
+      }, 'text', 'expr');
       body.appendChild(exprRow);
       var helper = _el('div', 've-helper-text');
       helper.textContent = 'Use variable names: ' + self.varOrder.map(function (n) { return n; }).join(', ');
@@ -732,18 +888,24 @@ class VariableEditor {
       maxWrap.appendChild(maxInp);
       typeRow.appendChild(maxWrap);
 
-      // Step (for decimal/currency)
-      if (v.type === 'decimal' || v.type === 'currency') {
+      // Step (for integer/decimal/currency/percent). For integer types this
+      // produces multiples of step (e.g. step=5 -> 5,10,15,...).
+      if (v.type === 'integer' || v.type === 'decimal' || v.type === 'currency' || v.type === 'percent') {
         var stepWrap = _el('div', 've-config-field');
         var stepLbl = _el('label');
         stepLbl.textContent = 'Step';
+        stepLbl.title = 'Only generate values at this interval (multiples of step)';
         stepWrap.appendChild(stepLbl);
         var stepInp = _el('input', 've-config-input');
         stepInp.type = 'number';
-        stepInp.value = v.step || 0.01;
-        stepInp.step = '0.01';
+        var isIntStep = (v.type === 'integer' || v.type === 'percent');
+        var defaultStep = isIntStep ? 1 : 0.01;
+        stepInp.value = v.step != null ? v.step : defaultStep;
+        stepInp.step = isIntStep ? '1' : '0.01';
+        stepInp.min = isIntStep ? '1' : '0';
         stepInp.addEventListener('change', function () {
-          v.step = parseFloat(stepInp.value) || 0.01;
+          var n = parseFloat(stepInp.value);
+          v.step = (isFinite(n) && n > 0) ? n : defaultStep;
           self.onChange();
         });
         stepWrap.appendChild(stepInp);
@@ -751,6 +913,33 @@ class VariableEditor {
       }
 
       body.appendChild(typeRow);
+
+      // Allowed-values list (optional) — if set, overrides min/max/step and
+      // picks uniformly from this list. Accepts numbers, fractions, or any
+      // tokens (e.g. "2, 4, 6" or "1/2, 1/3, 2/3").
+      var allowedRow = _el('div', 've-config-row');
+      var allowedWrap = _el('div', 've-config-field');
+      allowedWrap.style.flex = '1';
+      var allowedLbl = _el('label');
+      allowedLbl.textContent = 'Only these values (optional)';
+      allowedLbl.title = 'Comma-separated list. Overrides Min/Max/Step.';
+      allowedWrap.appendChild(allowedLbl);
+      var allowedInp = _el('input', 've-config-input');
+      allowedInp.type = 'text';
+      allowedInp.placeholder = 'e.g. 2, 4, 6, 8   or   1/2, 1/3, 2/3';
+      allowedInp.value = Array.isArray(v.allowedValues) ? v.allowedValues.join(', ') : '';
+      allowedInp.addEventListener('change', function () {
+        var raw = allowedInp.value.trim();
+        if (!raw) { v.allowedValues = null; self.onChange(); return; }
+        var parts = raw.split(/[,\n]/).map(function (s) { return s.trim(); }).filter(Boolean);
+        v.allowedValues = parts.map(function (p) {
+          return /^-?\d+(\.\d+)?$/.test(p) ? parseFloat(p) : p;
+        });
+        self.onChange();
+      });
+      allowedWrap.appendChild(allowedInp);
+      allowedRow.appendChild(allowedWrap);
+      body.appendChild(allowedRow);
     }
 
     card.appendChild(body);
@@ -788,7 +977,7 @@ class VariableEditor {
     }
   }
 
-  _fieldRow(label, value, onChange, type) {
+  _fieldRow(label, value, onChange, type, mathMode) {
     var row = _el('div', 've-config-row');
     var wrap = _el('div', 've-config-field');
     var lbl = _el('label');
@@ -797,7 +986,9 @@ class VariableEditor {
     var inp = _el('input', 've-config-input');
     inp.type = type || 'text';
     inp.value = value;
+    if (mathMode) this._trackFocus(inp, mathMode);
     inp.addEventListener('change', function () { onChange(inp.value); });
+    inp.addEventListener('input', function () { onChange(inp.value); });
     wrap.appendChild(inp);
     row.appendChild(wrap);
     return row;
@@ -915,6 +1106,7 @@ class VariableEditor {
             choices: [],
             expression: '',
             label: '',
+            allowedValues: null,
             operators: []
           };
         }
@@ -942,6 +1134,7 @@ class VariableEditor {
       choices: [],
       expression: '',
       label: '',
+      allowedValues: null,
       operators: []
     };
     this.varOrder.push(name);
@@ -965,51 +1158,31 @@ class VariableEditor {
 
 function generateFromDescriptor(descriptor) {
   var slots = descriptor.slots || [];
-  var vals = [];
-
-  // Generate values for each slot
-  for (var i = 0; i < slots.length; i++) {
-    var s = slots[i];
-    if (s.type === 'computed') {
-      vals[i] = null; // computed after independent slots
-    } else if (s.kind === 'operator' || (s.operators && s.operators.length)) {
-      // Operator variable: pick a random operator
-      var ops = s.operators || ['+', '-', '*', '/'];
-      vals[i] = ops[rand(0, ops.length - 1)];
-    } else if (s.type === 'word-choice' && s.choices && s.choices.length) {
-      vals[i] = s.choices[rand(0, s.choices.length - 1)];
-    } else if (s.type === 'fraction') {
-      vals[i] = (typeof randomizeToken === 'function') ? randomizeToken(s.original) : s.original;
-    } else {
-      var min = s.min != null ? s.min : 1;
-      var max = s.max != null ? s.max : 100;
-      var step = s.step || 1;
-      if (s.type === 'decimal' || s.type === 'currency') {
-        var scale = Math.round(1 / step);
-        vals[i] = rand(Math.round(min * scale), Math.round(max * scale)) / scale;
-      } else if (s.type === 'percent') {
-        vals[i] = rand(min, max);
-      } else {
-        vals[i] = rand(min, max);
+  // Delegate to the shared constraint-aware generator so preview behaves
+  // exactly like live play (honours allowedValues, integer step, constraint).
+  var vals;
+  if (typeof generateConstrainedValues === 'function') {
+    vals = generateConstrainedValues(descriptor, slots);
+  } else {
+    vals = [];
+    for (var i = 0; i < slots.length; i++) {
+      if (slots[i].type !== 'computed' && typeof generateUserSlotValue === 'function') {
+        vals[i] = generateUserSlotValue(slots[i]);
       }
     }
-  }
-
-  // Resolve computed slots
-  for (var i = 0; i < slots.length; i++) {
-    if (slots[i].type === 'computed' && slots[i].expression) {
-      var expr = slots[i].expression;
-      // Build a vals-based expression, also support variable names
-      var safeExpr = expr;
-      // Replace variable names with vals[index]
-      for (var j = 0; j < slots.length; j++) {
-        if (slots[j].name) {
-          safeExpr = safeExpr.replace(new RegExp('\\b' + slots[j].name + '\\b', 'g'), 'vals[' + j + ']');
+    for (var j = 0; j < slots.length; j++) {
+      if (slots[j].type === 'computed' && slots[j].expression) {
+        var expr = slots[j].expression;
+        var safeExpr = expr;
+        for (var k = 0; k < slots.length; k++) {
+          if (slots[k].name) {
+            safeExpr = safeExpr.replace(new RegExp('\\b' + slots[k].name + '\\b', 'g'), 'vals[' + k + ']');
+          }
         }
+        if (_isSafeExpr(safeExpr)) {
+          try { vals[j] = new Function('vals', 'return ' + safeExpr)(vals); } catch (e) { vals[j] = 0; }
+        } else { vals[j] = 0; }
       }
-      if (_isSafeExpr(safeExpr)) {
-        try { vals[i] = new Function('vals', 'return ' + safeExpr)(vals); } catch (e) { vals[i] = 0; }
-      } else { vals[i] = 0; }
     }
   }
 
@@ -1048,13 +1221,26 @@ function generateFromDescriptor(descriptor) {
   }
 
   var q = fill(descriptor.textTemplate);
-  var ans = fill(descriptor.answerTemplate);
-  var distractors = (descriptor.distractorTemplates || []).map(fill).filter(Boolean);
+  var ans;
+  if (typeof resolveAnswerText === 'function') {
+    ans = resolveAnswerText(descriptor, vals, slots);
+  } else {
+    ans = fill(descriptor.answerTemplate);
+    if (typeof applyUserAnswerFormat === 'function') {
+      ans = applyUserAnswerFormat(ans, descriptor.answerFormat);
+    }
+  }
+  var distractors = (descriptor.distractorTemplates || []).map(function (tmpl, di) {
+    var raw = fill(tmpl);
+    if (!raw) return '';
+    var fmt = (descriptor.distractorFormats && descriptor.distractorFormats[di]) || descriptor.answerFormat;
+    return typeof applyUserAnswerFormat === 'function' ? applyUserAnswerFormat(raw, fmt) : raw;
+  }).filter(Boolean);
   var guide = fill(descriptor.guideTemplate);
 
   // Evaluate custom distractor expressions if provided
   if (distractors.length === 0 && descriptor.distractorExprs && descriptor.distractorExprs.length) {
-    descriptor.distractorExprs.forEach(function (expr) {
+    descriptor.distractorExprs.forEach(function (expr, dIdx) {
       if (!expr || !expr.trim()) return;
       expr = expr.trim();
 
@@ -1068,56 +1254,40 @@ function generateFromDescriptor(descriptor) {
         }
       }
 
+      var fmt = (descriptor.distractorFormats && descriptor.distractorFormats[dIdx]) || descriptor.answerFormat;
+
       if (hasVarRef && _isSafeExpr(safeExpr)) {
         // It references variables -- evaluate as expression
         try {
           var val = new Function('vals', 'return ' + safeExpr)(vals);
           if (val != null) {
-            var formatted = typeof val === 'number'
-              ? (Number.isInteger(val) ? val.toString() : parseFloat(val.toFixed(4)).toString())
-              : String(val);
+            var formatted;
+            if (typeof val === 'number' && fmt && fmt.kind && fmt.kind !== 'auto' && fmt.kind !== 'inherit' && typeof formatUserAnswerValue === 'function') {
+              formatted = formatUserAnswerValue(val, fmt);
+            } else {
+              formatted = typeof val === 'number'
+                ? (Number.isInteger(val) ? val.toString() : parseFloat(val.toFixed(4)).toString())
+                : String(val);
+            }
             if (formatted !== ans) distractors.push(formatted);
           }
         } catch (e) { /* skip bad expressions */ }
       } else {
-        // Fixed value -- use as-is (string or number literal)
-        if (expr !== ans) distractors.push(expr);
+        // Fixed value -- use as-is, but try to apply format if it's numeric
+        var formattedFixed = expr;
+        if (typeof applyUserAnswerFormat === 'function' && fmt && fmt.kind && fmt.kind !== 'auto' && fmt.kind !== 'inherit') {
+          formattedFixed = applyUserAnswerFormat(expr, fmt);
+        }
+        if (formattedFixed !== ans) distractors.push(formattedFixed);
       }
     });
   }
 
-  // Auto-generate distractors if still none and answer is numeric
-  if (distractors.length === 0) {
-    var ansNum = parseFloat(ans);
-    if (!isNaN(ansNum)) {
-      var distSet = {};
-      var ansStr = ans;
-      // Generate plausible wrong answers near the correct one
-      var offsets = [1, -1, 2, -2, 10, -10, 5, -5];
-      // Also try common mistakes: off-by-one in each operand direction
-      for (var di = 0; di < vals.length; di++) {
-        if (typeof vals[di] === 'number') {
-          offsets.push(vals[di]);
-          offsets.push(-vals[di]);
-        }
-      }
-      for (var oi = 0; oi < offsets.length && Object.keys(distSet).length < 3; oi++) {
-        var d = ansNum + offsets[oi];
-        var dStr = Number.isInteger(d) ? d.toString() : parseFloat(d.toFixed(4)).toString();
-        if (dStr !== ansStr && d > 0 && !distSet[dStr]) {
-          distSet[dStr] = true;
-        }
-      }
-      // Fallback: random nearby values
-      while (Object.keys(distSet).length < 3) {
-        var r = ansNum + (rand(1, 10) * (rand(0, 1) ? 1 : -1));
-        var rStr = Number.isInteger(r) ? r.toString() : parseFloat(r.toFixed(4)).toString();
-        if (rStr !== ansStr && r > 0 && !distSet[rStr]) {
-          distSet[rStr] = true;
-        }
-      }
-      distractors = Object.keys(distSet).slice(0, 3);
-    }
+  // Auto-generate distractors if still none and answer is numeric.
+  // Uses format-aware parsing so fractions/percent/currency yield in-format
+  // distractors (e.g. "3/4" → "1/2, 5/8, 1", not "3, 4, 5").
+  if (distractors.length === 0 && typeof autoGenerateDistractors === 'function') {
+    distractors = autoGenerateDistractors(ans, descriptor.answerFormat, vals);
   }
 
   return { q: q, ans: ans, distractors: distractors, guide: guide };

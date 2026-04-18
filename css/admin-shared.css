@@ -201,7 +201,17 @@
 .ve-math-bar { display: flex; flex-wrap: wrap; gap: 0.2rem; padding: 0.35rem 0.5rem; background: var(--bg-surface); border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); margin-bottom: 0.5rem; align-items: center; }
 .ve-math-btn { padding: 0.15rem 0.4rem; font-size: 0.82rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-panel); cursor: pointer; color: var(--text-main); transition: background 0.1s; min-width: 26px; text-align: center; font-family: inherit; }
 .ve-math-btn:hover { background: var(--primary-light); border-color: var(--primary-color); color: var(--primary-color); }
+.ve-math-btn[data-only="expr"] { background: color-mix(in srgb, var(--primary-color) 6%, var(--bg-panel)); }
+.ve-math-btn[data-only="display"] { background: color-mix(in srgb, var(--border-color) 10%, var(--bg-panel)); }
 .ve-math-sep { width: 1px; height: 18px; background: var(--border-color); margin: 0 0.15rem; }
+
+/* Answer / distractor format picker */
+.ve-format-picker { display: inline-flex; align-items: center; gap: 0.3rem; margin-top: 0.3rem; font-size: 0.74rem; color: var(--text-secondary); }
+.ve-format-label { font-weight: 600; }
+.ve-format-kind { padding: 0.1rem 0.25rem; border: 1px solid var(--border-color); border-radius: 3px; background: var(--bg-panel); color: var(--text-main); font-size: 0.74rem; }
+.ve-format-extra { display: inline-flex; align-items: center; gap: 0.2rem; }
+.ve-format-num { width: 48px; padding: 0.1rem 0.25rem; border: 1px solid var(--border-color); border-radius: 3px; background: var(--bg-panel); color: var(--text-main); font-size: 0.74rem; }
+.ve-distractor-format { margin-left: 52px; margin-bottom: 0.3rem; }
 
 /* ── 13. Accordion sections ───────────────────────────────── */
 .accordion-section { border: 1px solid var(--border-color-light); border-radius: var(--radius-sm); margin-bottom: 0.5rem; overflow: hidden; }

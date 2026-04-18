@@ -112,6 +112,7 @@
                     <div><span class="admin-label">Category</span><input type="text" id="qb-ai-cat" class="admin-input" list="qb-cat-list" placeholder="e.g. PSSA, Keystone"></div>
                     <div><span class="admin-label">Grade</span><input type="text" id="qb-ai-grade" class="admin-input" list="qb-grade-list" placeholder="e.g. 3, 4, 8"></div>
                     <div><span class="admin-label">Class</span><input type="text" id="qb-ai-class" class="admin-input" list="qb-class-list" placeholder="e.g. alg1, 6/7"></div>
+                    <div><span class="admin-label">Chapter</span><input type="text" id="qb-ai-chapter" class="admin-input" list="qb-chapter-list" placeholder="e.g. 1, Ch 3, Unit 2"></div>
                 </div>
                 <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-secondary);">
                     <label><input type="radio" name="qb-ai-which" value="all" checked> Save all <span id="qb-ai-count">0</span> questions as one template</label>
@@ -157,6 +158,7 @@
                     <div><span class="admin-label">Category</span><input type="text" id="qb-clone-cat" class="admin-input" list="qb-cat-list" placeholder="e.g. PSSA, Keystone"></div>
                     <div><span class="admin-label">Grade</span><input type="text" id="qb-clone-grade" class="admin-input" list="qb-grade-list" placeholder="e.g. 3, 4, 8"></div>
                     <div><span class="admin-label">Class</span><input type="text" id="qb-clone-class" class="admin-input" list="qb-class-list" placeholder="e.g. alg1, 6/7"></div>
+                    <div><span class="admin-label">Chapter</span><input type="text" id="qb-clone-chapter" class="admin-input" list="qb-chapter-list" placeholder="e.g. 1, Ch 3, Unit 2"></div>
                 </div>
                 <button class="btn" style="margin-top:0.6rem;" onclick="qbSaveClone()">Save to Question Bank</button>
                 <span id="qb-clone-save-status" class="admin-status"></span>
@@ -310,6 +312,7 @@
                     <div><span class="admin-label">Category</span><input type="text" id="qb-man-cat" class="admin-input" list="qb-cat-list" placeholder="e.g. PSSA, Keystone"></div>
                     <div><span class="admin-label">Grade</span><input type="text" id="qb-man-grade" class="admin-input" list="qb-grade-list" placeholder="e.g. 3, 4, 8"></div>
                     <div><span class="admin-label">Class</span><input type="text" id="qb-man-class" class="admin-input" list="qb-class-list" placeholder="e.g. alg1, 6/7"></div>
+                    <div><span class="admin-label">Chapter</span><input type="text" id="qb-man-chapter" class="admin-input" list="qb-chapter-list" placeholder="e.g. 1, Ch 3, Unit 2"></div>
                 </div>
                 <button class="btn" style="margin-top:0.6rem;" onclick="qbSaveManual()">Save to Question Bank</button>
                 <span id="qb-man-save-status" class="admin-status"></span>
@@ -327,15 +330,18 @@
         <div class="admin-filter-row">
             <select id="qb-filter-grade" class="admin-select" onchange="qbRenderSkills()">
                 <option value="all">All Grades</option>
-                <option value="3">Grade 3</option><option value="4">Grade 4</option><option value="5">Grade 5</option>
-                <option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option>
-                <option value="algebra1">Keystone Algebra</option>
             </select>
             <select id="qb-filter-cat" class="admin-select" onchange="qbRenderSkills()">
                 <option value="all">All Categories</option>
-                <option value="pssa">PSSA</option>
-                <option value="keystone">Keystone</option>
-                <option value="custom">Custom</option>
+            </select>
+            <select id="qb-filter-class" class="admin-select" onchange="qbRenderSkills()">
+                <option value="all">All Classes</option>
+            </select>
+            <select id="qb-filter-chapter" class="admin-select" onchange="qbRenderSkills()">
+                <option value="all">All Chapters</option>
+            </select>
+            <select id="qb-filter-anchor" class="admin-select" onchange="qbRenderSkills()">
+                <option value="all">All Standards</option>
             </select>
             <input type="text" id="qb-filter-search" class="admin-input" placeholder="Search..." style="max-width:200px;" oninput="qbRenderSkills()">
         </div>
@@ -348,17 +354,19 @@
 <datalist id="qb-cat-list"></datalist>
 <datalist id="qb-grade-list"></datalist>
 <datalist id="qb-class-list"></datalist>
+<datalist id="qb-chapter-list"></datalist>
+<datalist id="qb-anchor-list"></datalist>
 
 </div><!-- end admin-content -->
 
 <!-- Firebase -->
 <script type="module" src="../js/firebase-config.js"></script>
-<script src="../js/utils.js?v=20260417"></script>
+<script src="../js/utils.js?v=20260426"></script>
 <!-- Dynamic generation helpers -->
-<script src="../js/dynamic-gen.js?v=20260417"></script>
+<script src="../js/dynamic-gen.js?v=20260426"></script>
 <!-- Variable editor component -->
-<script src="../js/variable-editor.js?v=20260417"></script>
+<script src="../js/variable-editor.js?v=20260426"></script>
 <!-- Question Bank core logic -->
-<script src="../js/qb-core.js?v=20260417"></script>
+<script src="../js/qb-core.js?v=20260426"></script>
 </body>
 </html>

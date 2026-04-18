@@ -158,17 +158,21 @@
     <div class="tb-left">
         <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;color:var(--primary-color);padding:0.5rem 0.75rem;background:var(--bg-surface);border:1px solid var(--border-color-light);border-radius:var(--radius-md) var(--radius-md) 0 0;">My Bank</div>
         <div style="background:var(--bg-panel);border:1px solid var(--border-color-light);border-top:none;border-radius:0 0 var(--radius-md) var(--radius-md);padding:0.75rem;flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
-            <div class="tb-gen-row">
-                <select id="saved-grade" style="flex:1;" onchange="tbRenderSavedSkills()">
+            <div class="tb-gen-row" style="flex-wrap:wrap;gap:0.25rem;">
+                <select id="saved-grade" style="flex:1;min-width:90px;" onchange="tbRenderSavedSkills()">
                     <option value="all">All Grades</option>
-                    <option value="3">Grade 3</option><option value="4">Grade 4</option><option value="5">Grade 5</option>
-                    <option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option>
-                    <option value="algebra1">Keystone Algebra</option>
                 </select>
-                <select id="saved-cat" style="width:90px;" onchange="tbRenderSavedSkills()">
-                    <option value="all">All</option>
-                    <option value="pssa">PSSA</option>
-                    <option value="keystone">Keystone</option>
+                <select id="saved-cat" style="flex:1;min-width:90px;" onchange="tbRenderSavedSkills()">
+                    <option value="all">All Categories</option>
+                </select>
+                <select id="saved-class" style="flex:1;min-width:90px;" onchange="tbRenderSavedSkills()">
+                    <option value="all">All Classes</option>
+                </select>
+                <select id="saved-chapter" style="flex:1;min-width:90px;" onchange="tbRenderSavedSkills()">
+                    <option value="all">All Chapters</option>
+                </select>
+                <select id="saved-anchor" style="flex:1;min-width:90px;" onchange="tbRenderSavedSkills()">
+                    <option value="all">All Standards</option>
                 </select>
             </div>
             <input type="text" class="tb-skill-search" id="saved-search" placeholder="Search skills..." oninput="tbRenderSavedSkills()">
@@ -241,6 +245,7 @@
                 <div><label>Category</label><input type="text" id="tb-category" class="text-input" list="tb-category-list" placeholder="e.g. PSSA, Keystone"><datalist id="tb-category-list"></datalist></div>
                 <div><label>Grade</label><input type="text" id="tb-test-grade" class="text-input" list="tb-test-grade-list" placeholder="e.g. 3, 4, 8"><datalist id="tb-test-grade-list"></datalist></div>
                 <div><label>Class</label><input type="text" id="tb-test-class" class="text-input" list="tb-test-class-list" placeholder="e.g. alg1, 6/7"><datalist id="tb-test-class-list"></datalist></div>
+                <div><label>Chapter</label><input type="text" id="tb-test-chapter" class="text-input" list="tb-test-chapter-list" placeholder="e.g. 1, Ch 3, Unit 2"><datalist id="tb-test-chapter-list"></datalist></div>
             </div>
             <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap;">
                 <button class="btn" onclick="tbSaveTestOnly()">Save Test</button>
@@ -299,12 +304,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="../js/firebase-config.js" type="module"></script>
-<script src="../js/utils.js?v=20260417"></script>
-<script src="../js/dynamic-gen.js?v=20260417"></script>
-<script src="../js/variable-editor.js?v=20260417"></script>
-<script src="../js/templates.js?v=20260417"></script>
-<script src="../js/extra-templates.js?v=20260417"></script>
-<script src="../js/tb-core.js?v=20260417"></script>
+<script src="../js/utils.js?v=20260426"></script>
+<script src="../js/dynamic-gen.js?v=20260426"></script>
+<script src="../js/variable-editor.js?v=20260426"></script>
+<script src="../js/templates.js?v=20260426"></script>
+<script src="../js/extra-templates.js?v=20260426"></script>
+<script src="../js/tb-core.js?v=20260426"></script>
 
 </body>
 </html>

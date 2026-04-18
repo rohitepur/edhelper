@@ -26,7 +26,8 @@ const QBState = {
     manVisualSlots: {},
     variableEditors: {},
     manVarEditor: null,
-    editingSkillId: null
+    editingSkillId: null,
+    editVarEditors: {}
 };
 
 // ========================
@@ -290,14 +291,15 @@ async function qbSaveAI() {
     const grade = document.getElementById('qb-ai-grade').value.trim();
     const anchor = document.getElementById('qb-ai-anchor').value.trim();
     const cls = (document.getElementById('qb-ai-class') || {}).value || '';
+    const chapter = (document.getElementById('qb-ai-chapter') || {}).value || '';
     const veDesc = _getVariableDescriptor('ai');
     st.innerHTML = '<span class="admin-loading"></span> Saving...'; st.className = 'admin-status';
     try {
         if (which === 'all') {
-            await qbDoSave(name, anchor, cat, grade, QBState.aiQs, veDesc, cls.trim());
+            await qbDoSave(name, anchor, cat, grade, QBState.aiQs, veDesc, cls.trim(), chapter.trim());
         } else {
             for (let i = 0; i < QBState.aiQs.length; i++) {
-                await qbDoSave(name + ' ' + (i + 1), anchor, cat, grade, [QBState.aiQs[i]], veDesc, cls.trim());
+                await qbDoSave(name + ' ' + (i + 1), anchor, cat, grade, [QBState.aiQs[i]], veDesc, cls.trim(), chapter.trim());
             }
         }
         st.textContent = 'Saved! Questions are now in your Question Bank.';
@@ -435,10 +437,11 @@ async function qbSaveClone() {
     const grade = document.getElementById('qb-clone-grade').value.trim();
     const anchor = document.getElementById('qb-clone-anchor').value.trim();
     const cls = (document.getElementById('qb-clone-class') || {}).value || '';
+    const chapter = (document.getElementById('qb-clone-chapter') || {}).value || '';
     const veDesc = _getVariableDescriptor('clone');
     st.innerHTML = '<span class="admin-loading"></span> Saving...'; st.className = 'admin-status';
     try {
-        await qbDoSave(name, anchor, cat, grade, QBState.cloneQs, veDesc, cls.trim());
+        await qbDoSave(name, anchor, cat, grade, QBState.cloneQs, veDesc, cls.trim(), chapter.trim());
         st.textContent = 'Saved! Questions are now in your Question Bank.';
         st.className = 'admin-status ok';
         await qbLoadSkills();
@@ -618,9 +621,10 @@ async function qbSaveManual() {
     const grade = document.getElementById('qb-man-grade').value.trim();
     const anchor = document.getElementById('qb-man-anchor').value.trim();
     const cls = (document.getElementById('qb-man-class') || {}).value || '';
+    const chapter = (document.getElementById('qb-man-chapter') || {}).value || '';
     st.innerHTML = '<span class="admin-loading"></span> Saving...'; st.className = 'admin-status';
     try {
-        await qbDoSave(name, anchor, cat, grade, QBState.manQs, null, cls.trim());
+        await qbDoSave(name, anchor, cat, grade, QBState.manQs, null, cls.trim(), chapter.trim());
         st.textContent = 'Saved! Template is now in your Question Bank.';
         st.className = 'admin-status ok';
         QBState.manQs = [];
@@ -1032,7 +1036,7 @@ function qbRestoreVisualConfig(visual) {
 // ========================
 // SHARED: FIREBASE SAVE
 // ========================
-async function qbDoSave(name, anchor, cat, grade, questions, variableDescriptor, skillClass) {
+async function qbDoSave(name, anchor, cat, grade, questions, variableDescriptor, skillClass, chapter) {
     let retries = 0;
     while (typeof fbSaveCustomSkill !== 'function' && retries++ < 20) {
         await new Promise(r => setTimeout(r, 150));
@@ -1048,6 +1052,7 @@ async function qbDoSave(name, anchor, cat, grade, questions, variableDescriptor,
         category: cat || '',
         grade: grade || '',
         skillClass: skillClass || '',
+        chapter: chapter || '',
         questions: questions.map(q => ({
             text: q.text,
             questionHTML: q.text,
@@ -1219,15 +1224,26 @@ async function qbLoadSkills() {
 function qbRenderSkills() {
     const list = document.getElementById('qb-skills-list');
     if (!list) return;
-    const grade = document.getElementById('qb-filter-grade').value;
-    const cat = document.getElementById('qb-filter-cat').value;
-    const search = (document.getElementById('qb-filter-search').value || '').toLowerCase();
+    const fv = (id) => {
+        const el = document.getElementById(id);
+        return el ? el.value : 'all';
+    };
+    const grade = fv('qb-filter-grade');
+    const cat = fv('qb-filter-cat');
+    const cls = fv('qb-filter-class');
+    const chapter = fv('qb-filter-chapter');
+    const anchor = fv('qb-filter-anchor');
+    const search = ((document.getElementById('qb-filter-search') || {}).value || '').toLowerCase();
 
     const entries = Object.entries(QBState.skillsCache).filter(([id, sk]) => {
-        if (grade !== 'all' && sk.grade !== grade) return false;
-        if (cat !== 'all' && sk.category !== cat) return false;
+        if (grade !== 'all' && (sk.grade || '') !== grade) return false;
+        if (cat !== 'all' && (sk.category || '') !== cat) return false;
+        if (cls !== 'all' && (sk.skillClass || '') !== cls) return false;
+        if (chapter !== 'all' && (sk.chapter || '') !== chapter) return false;
+        if (anchor !== 'all' && (sk.anchor || '') !== anchor) return false;
         if (search) {
-            const haystack = ((sk.name || sk.type || '') + ' ' + (sk.anchor || '')).toLowerCase();
+            const haystack = [sk.name, sk.type, sk.anchor, sk.category, sk.grade, sk.skillClass, sk.chapter, sk.questionText]
+                .map(x => String(x || '')).join(' ').toLowerCase();
             if (!haystack.includes(search)) return false;
         }
         return true;
@@ -1244,7 +1260,7 @@ function qbRenderSkills() {
         const displayName = sk.name || sk.type || id;
         const qs = sk.questions || [];
         const qCount = qs.length || 1;
-        const gradeLabel = sk.grade === 'algebra1' ? 'Alg' : ('Gr ' + sk.grade);
+        const gradeLabel = sk.grade === 'algebra1' ? 'Alg' : (sk.grade ? 'Gr ' + sk.grade : '');
         const isDynamic = sk.dynamic || qs.some(q => q.variableDescriptor);
         return `
             <div class="admin-skill-card" id="qb-sk-${id}">
@@ -1252,8 +1268,10 @@ function qbRenderSkills() {
                     <div>
                         <div class="admin-skill-name">${escHtml(displayName)}</div>
                         <div class="admin-skill-meta">
-                            <span class="admin-badge grade">${gradeLabel}</span>
+                            ${gradeLabel ? `<span class="admin-badge grade">${gradeLabel}</span>` : ''}
                             <span class="admin-badge cat">${escHtml(sk.category || 'custom')}</span>
+                            ${sk.skillClass ? `<span class="admin-badge">${escHtml(sk.skillClass)}</span>` : ''}
+                            ${sk.chapter ? `<span class="admin-badge">Ch ${escHtml(sk.chapter)}</span>` : ''}
                             ${sk.anchor ? `<span class="admin-badge">${escHtml(sk.anchor)}</span>` : ''}
                             ${isDynamic ? '<span class="admin-badge dynamic">Dynamic</span>' : '<span class="admin-badge static">Static</span>'}
                             ${qCount} question${qCount !== 1 ? 's' : ''}
@@ -1261,6 +1279,7 @@ function qbRenderSkills() {
                     </div>
                     <div class="admin-skill-actions" onclick="event.stopPropagation()">
                         <button class="admin-btn admin-btn-sm" onclick="qbEditSkill('${id}')">Edit</button>
+                        <button class="admin-btn admin-btn-sm" onclick="qbCloneSkill('${id}')">Clone</button>
                         <button class="admin-btn admin-btn-sm del" onclick="qbDeleteSkill('${id}', '${escHtml(displayName).replace(/'/g, "\\'")}')">Delete</button>
                     </div>
                 </div>
@@ -1299,6 +1318,50 @@ async function qbDeleteSkill(id, name) {
         qbRenderSkills();
     } catch (e) {
         alert('Delete failed: ' + e.message);
+    }
+}
+
+/**
+ * Deep-clone an existing skill into a new record with its own id. Variable
+ * descriptors, visual aids, options, and all per-question metadata are
+ * preserved. The clone opens inline-edit so the user can tweak before
+ * accepting; cancelling the edit leaves the clone on disk as-is.
+ */
+async function qbCloneSkill(id) {
+    const sk = QBState.skillsCache[id];
+    if (!sk) return;
+    const baseName = (sk.name || sk.type || 'Question').replace(/\s+\(Copy(?:\s*\d+)?\)\s*$/, '');
+    const suggested = baseName + ' (Copy)';
+    const name = prompt('Name for the cloned question bank:', suggested);
+    if (name == null) return;
+    const finalName = name.trim() || suggested;
+
+    let retries = 0;
+    while (typeof fbSaveCustomSkill !== 'function' && retries++ < 20) {
+        await new Promise(r => setTimeout(r, 150));
+    }
+    if (typeof fbSaveCustomSkill !== 'function') { alert('Firebase not ready.'); return; }
+
+    const now = new Date().toISOString();
+    const newId = 'skill_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const cloned = JSON.parse(JSON.stringify(sk));
+    cloned.name = finalName;
+    cloned.type = finalName.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join('') || sk.type;
+    cloned.createdAt = now;
+    cloned.updatedAt = now;
+    delete cloned.id;
+
+    try {
+        await fbSaveCustomSkill(newId, cloned);
+        QBState.skillsCache[newId] = cloned;
+        qbRenderSkills();
+        // Open the clone immediately so the user can tweak it
+        const body = document.getElementById('qb-sk-body-' + newId);
+        if (body) body.classList.add('open');
+        qbEditSkill(newId);
+    } catch (e) {
+        alert('Clone failed: ' + e.message);
     }
 }
 
@@ -1364,21 +1427,26 @@ function qbEditSkill(id) {
         <div style="font-size:0.8rem;font-weight:700;color:var(--primary-color);text-transform:uppercase;margin-bottom:0.5rem;">Edit Template</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
             <div><span class="admin-label">Skill Name</span><input type="text" class="admin-input" id="qb-edit-name" value="${escHtml(sk.name || sk.type || '')}"></div>
-            <div><span class="admin-label">Standard</span><input type="text" class="admin-input" id="qb-edit-anchor" value="${escHtml(sk.anchor || '')}"></div>
+            <div><span class="admin-label">Standard</span><input type="text" class="admin-input" id="qb-edit-anchor" list="qb-anchor-list" value="${escHtml(sk.anchor || '')}"></div>
             <div><span class="admin-label">Category</span><input type="text" class="admin-input" id="qb-edit-cat" list="qb-cat-list" value="${escHtml(sk.category || '')}"></div>
             <div><span class="admin-label">Grade</span><input type="text" class="admin-input" id="qb-edit-grade" list="qb-grade-list" value="${escHtml(sk.grade || '')}"></div>
             <div><span class="admin-label">Class</span><input type="text" class="admin-input" id="qb-edit-class" list="qb-class-list" value="${escHtml(sk.skillClass || '')}"></div>
+            <div><span class="admin-label">Chapter</span><input type="text" class="admin-input" id="qb-edit-chapter" list="qb-chapter-list" value="${escHtml(sk.chapter || '')}"></div>
         </div>
         <div style="margin-top:0.5rem;">${questionsHtml}</div>
         <button class="btn" style="font-size:0.78rem;padding:0.3rem 0.6rem;margin-top:0.3rem;" onclick="qbEditAddQ()">+ Add Question</button>
-        <div style="display:flex;gap:0.5rem;margin-top:0.75rem;">
+        <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap;">
             <button class="btn" onclick="qbSaveEdit()">Save Changes</button>
+            <button class="admin-btn" onclick="qbSaveEdit(true)">Save as Copy</button>
             <button class="admin-btn" onclick="qbCloseEdit()">Cancel</button>
         </div>
         <span id="qb-edit-status" class="admin-status"></span>
     `;
 
-    // Initialize variable editors for each question
+    // Initialize variable editors for each question and cache them so qbSaveEdit
+    // can pull the live templates + descriptor (the outer text inputs don't
+    // reflect edits made inside the variable editor).
+    QBState.editVarEditors = {};
     qs.forEach((q, i) => {
         const veEl = document.getElementById(`qb-edit-q${i}-ve`);
         if (veEl && typeof VariableEditor === 'function') {
@@ -1389,6 +1457,7 @@ function qbEditSkill(id) {
             if (q.variableDescriptor) {
                 try { ve.setFromDescriptor(q.variableDescriptor); } catch (e) { /* ignore */ }
             }
+            QBState.editVarEditors[i] = ve;
         }
     });
 }
@@ -1438,12 +1507,24 @@ function qbEditAddQ() {
     else editContainer.appendChild(newCard);
 }
 
-async function qbSaveEdit() {
+async function qbSaveEdit(saveAsCopy) {
     const id = QBState.editingSkillId;
     if (!id) return;
     const st = document.getElementById('qb-edit-status');
-    const name = document.getElementById('qb-edit-name')?.value.trim();
+    let name = document.getElementById('qb-edit-name')?.value.trim();
     if (!name) { if (st) { st.textContent = 'Name is required.'; st.className = 'admin-status err'; } return; }
+
+    // "Save as Copy" prompts for a new name (default: current + " (Copy)")
+    // and saves to a fresh id, leaving the original untouched.
+    let targetId = id;
+    if (saveAsCopy) {
+        const base = name.replace(/\s+\(Copy(?:\s*\d+)?\)\s*$/, '');
+        const suggested = base + ' (Copy)';
+        const entered = prompt('Save this as a new question bank named:', suggested);
+        if (entered == null) return;
+        name = entered.trim() || suggested;
+        targetId = 'skill_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    }
 
     // Collect questions from inline form
     const editContainer = document.getElementById('qb-sk-edit-' + id);
@@ -1452,36 +1533,66 @@ async function qbSaveEdit() {
     const questions = [];
     qCards.forEach(card => {
         const idx = card.id.split('-').pop();
-        const textEl = document.getElementById('qb-edit-q' + idx + '-text');
-        const text = textEl ? textEl.value.trim() : '';
+        const ve = QBState.editVarEditors && QBState.editVarEditors[idx];
+
+        // For dynamic questions prefer the variable editor's live state — the
+        // outer form inputs don't reflect edits made inside the editor.
+        let text, guide, answerEl, optionsFromVE = null, correctFromVE = null, descriptor = null;
+        if (ve) {
+            text = (ve.questionTemplate || '').trim();
+            guide = (ve.guideTemplate || '').trim();
+            descriptor = ve.getDescriptor();
+            if (ve.questionType === 'oe') {
+                answerEl = { value: ve.answerTemplate || '' };
+            } else {
+                optionsFromVE = (ve.distractorTemplates || []).map(s => String(s || '').trim()).filter(Boolean);
+                correctFromVE = ve.answerTemplate || '';
+            }
+        } else {
+            const textEl = document.getElementById('qb-edit-q' + idx + '-text');
+            text = textEl ? textEl.value.trim() : '';
+            const guideEl = document.getElementById('qb-edit-q' + idx + '-guide');
+            guide = guideEl ? guideEl.value.trim() : '';
+            answerEl = document.getElementById('qb-edit-q' + idx + '-answer');
+        }
         if (!text) return;
 
-        const guideEl = document.getElementById('qb-edit-q' + idx + '-guide');
-        const guide = guideEl ? guideEl.value.trim() : '';
-
-        // Check if OE (has answer input) or MC (has options)
-        const answerEl = document.getElementById('qb-edit-q' + idx + '-answer');
-        if (answerEl) {
+        if (answerEl && !optionsFromVE) {
             // Open ended
             questions.push({
-                text, options: [], correct: answerEl.value.trim(), guide, openEnded: true, isCustom: true,
-                visual: null, visualHTML: '', optionVisuals: null, answerVisual: null, variableDescriptor: null
+                text,
+                options: [],
+                correct: (answerEl.value || '').trim(),
+                guide,
+                openEnded: true,
+                isCustom: true,
+                visual: null, visualHTML: '', optionVisuals: null, answerVisual: null,
+                variableDescriptor: descriptor
             });
         } else {
             // MC
             const letters = ['A', 'B', 'C', 'D'];
-            const options = [];
-            letters.forEach((l, j) => {
-                const optEl = document.getElementById('qb-edit-q' + idx + '-opt' + j);
-                if (optEl && optEl.value.trim()) options.push(l + ') ' + optEl.value.trim());
-            });
-            const correctRadio = document.querySelector(`input[name="qb-edit-correct-${idx}"]:checked`);
-            const correctIdx = correctRadio ? parseInt(correctRadio.value) : 0;
-            const correctOpt = options[correctIdx] || options[0] || '';
-            const correct = correctOpt.replace(/^[A-D]\)\s*/, '');
+            let options, correct;
+            if (optionsFromVE) {
+                options = optionsFromVE.slice(0, 4).map((o, j) => letters[j] + ') ' + o);
+                correct = String(correctFromVE || '').trim();
+            } else {
+                options = [];
+                letters.forEach((l, j) => {
+                    const optEl = document.getElementById('qb-edit-q' + idx + '-opt' + j);
+                    if (optEl && optEl.value.trim()) options.push(l + ') ' + optEl.value.trim());
+                });
+                const correctRadio = document.querySelector(`input[name="qb-edit-correct-${idx}"]:checked`);
+                const correctIdx = correctRadio ? parseInt(correctRadio.value) : 0;
+                const correctOpt = options[correctIdx] || options[0] || '';
+                correct = correctOpt.replace(/^[A-D]\)\s*/, '');
+            }
             questions.push({
-                text, options, correct, guide, openEnded: false, isCustom: true,
-                visual: null, visualHTML: '', optionVisuals: null, answerVisual: null, variableDescriptor: null
+                text, options, correct, guide,
+                openEnded: false,
+                isCustom: true,
+                visual: null, visualHTML: '', optionVisuals: null, answerVisual: null,
+                variableDescriptor: descriptor
             });
         }
     });
@@ -1491,6 +1602,7 @@ async function qbSaveEdit() {
     if (st) { st.innerHTML = '<span class="admin-loading"></span> Saving...'; st.className = 'admin-status'; }
     try {
         const existing = QBState.skillsCache[id] || {};
+        const nowStr = new Date().toISOString();
         const updated = {
             ...existing,
             name,
@@ -1498,23 +1610,36 @@ async function qbSaveEdit() {
             category: document.getElementById('qb-edit-cat')?.value.trim() || '',
             grade: document.getElementById('qb-edit-grade')?.value.trim() || '',
             skillClass: document.getElementById('qb-edit-class')?.value.trim() || '',
+            chapter: document.getElementById('qb-edit-chapter')?.value.trim() || '',
             questions,
             questionText: questions[0]?.text || '',
             questionHTML: questions[0]?.text || '',
             answerText: questions[0]?.correct || '',
             distractorTexts: (questions[0]?.options || []).filter(o => o.replace(/^[A-D]\)\s*/, '') !== (questions[0]?.correct || '')).map(o => o.replace(/^[A-D]\)\s*/, '')),
             guideText: questions[0]?.guide || '',
-            updatedAt: new Date().toISOString()
+            updatedAt: nowStr
         };
+        if (saveAsCopy) {
+            updated.createdAt = nowStr;
+            updated.type = name.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean)
+                .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join('') || existing.type || 'Copy';
+        }
         let retries = 0;
         while (typeof fbSaveCustomSkill !== 'function' && retries++ < 20) {
             await new Promise(r => setTimeout(r, 150));
         }
-        await fbSaveCustomSkill(id, updated);
-        QBState.skillsCache[id] = updated;
-        if (st) { st.textContent = 'Saved!'; st.className = 'admin-status ok'; }
+        await fbSaveCustomSkill(targetId, updated);
+        QBState.skillsCache[targetId] = updated;
+        if (st) { st.textContent = saveAsCopy ? 'Saved as copy!' : 'Saved!'; st.className = 'admin-status ok'; }
         QBState.editingSkillId = null;
+        QBState.editVarEditors = {};
         qbRenderSkills();
+        if (saveAsCopy) {
+            // Open the new copy so user can verify / keep editing
+            const body = document.getElementById('qb-sk-body-' + targetId);
+            if (body) body.classList.add('open');
+            qbEditSkill(targetId);
+        }
     } catch (e) {
         if (st) { st.textContent = 'Error: ' + e.message; st.className = 'admin-status err'; }
     }
@@ -1527,6 +1652,7 @@ function qbCloseEdit() {
         if (editContainer) editContainer.innerHTML = '';
     }
     QBState.editingSkillId = null;
+    QBState.editVarEditors = {};
 }
 
 // ========================
@@ -1572,38 +1698,50 @@ function _getVariableDescriptor(tabName) {
 function _qbPopulateSavedFilters() {
     const grades = new Set(['3','4','5','6','7','8','algebra1']);
     const cats = new Set(['pssa','keystone','custom']);
+    const classes = new Set();
+    const chapters = new Set();
+    const anchors = new Set();
     Object.values(QBState.skillsCache || {}).forEach(sk => {
         if (sk.grade) grades.add(sk.grade);
         if (sk.category) cats.add(sk.category);
+        if (sk.skillClass) classes.add(sk.skillClass);
+        if (sk.chapter) chapters.add(sk.chapter);
+        if (sk.anchor) anchors.add(sk.anchor);
     });
 
-    const gradeSel = document.getElementById('qb-filter-grade');
-    const catSel = document.getElementById('qb-filter-cat');
-    if (!gradeSel || !catSel) return;
-
-    const curGrade = gradeSel.value;
-    const curCat = catSel.value;
-
     const gradeLabel = g => g === 'algebra1' ? 'Keystone Algebra' : (/^\d+$/.test(g) ? 'Grade ' + g : g);
-    gradeSel.innerHTML = '<option value="all">All Grades</option>' +
-        Array.from(grades).sort((a, b) => {
-            const na = parseInt(a), nb = parseInt(b);
-            if (!isNaN(na) && !isNaN(nb)) return na - nb;
-            if (!isNaN(na)) return -1;
-            if (!isNaN(nb)) return 1;
-            return a.localeCompare(b);
-        }).map(g => `<option value="${g}">${gradeLabel(g)}</option>`).join('');
-    gradeSel.value = curGrade || 'all';
+    const numericSort = (a, b) => {
+        const na = parseFloat(a), nb = parseFloat(b);
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        if (!isNaN(na)) return -1;
+        if (!isNaN(nb)) return 1;
+        return String(a).localeCompare(String(b));
+    };
 
-    catSel.innerHTML = '<option value="all">All Categories</option>' +
-        Array.from(cats).sort().map(c => `<option value="${c}">${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join('');
-    catSel.value = curCat || 'all';
+    function fillSelect(id, allLabel, values, labelFn) {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const cur = sel.value;
+        sel.innerHTML = `<option value="all">${allLabel}</option>` +
+            Array.from(values).sort(numericSort)
+                .map(v => `<option value="${escHtml(v)}">${escHtml(labelFn ? labelFn(v) : v)}</option>`)
+                .join('');
+        sel.value = cur || 'all';
+    }
+
+    fillSelect('qb-filter-grade', 'All Grades', grades, gradeLabel);
+    fillSelect('qb-filter-cat', 'All Categories', cats, c => c.charAt(0).toUpperCase() + c.slice(1));
+    fillSelect('qb-filter-class', 'All Classes', classes);
+    fillSelect('qb-filter-chapter', 'All Chapters', chapters, c => /^\d/.test(c) ? 'Ch ' + c : c);
+    fillSelect('qb-filter-anchor', 'All Standards', anchors);
 }
 
 async function _qbPopulateMetadataLists() {
     const categories = new Set(['PSSA', 'Keystone', 'Custom']);
     const grades = new Set(['3', '4', '5', '6', '7', '8', 'algebra1']);
     const classes = new Set();
+    const chapters = new Set();
+    const anchors = new Set();
 
     // Pull existing values from saved skills
     try {
@@ -1611,6 +1749,8 @@ async function _qbPopulateMetadataLists() {
             if (sk.category) categories.add(sk.category);
             if (sk.grade) grades.add(sk.grade);
             if (sk.skillClass) classes.add(sk.skillClass);
+            if (sk.chapter) chapters.add(sk.chapter);
+            if (sk.anchor) anchors.add(sk.anchor);
         });
     } catch(e) { /* ignore */ }
 
@@ -1627,6 +1767,8 @@ async function _qbPopulateMetadataLists() {
     fill('qb-cat-list', categories);
     fill('qb-grade-list', grades);
     fill('qb-class-list', classes);
+    fill('qb-chapter-list', chapters);
+    fill('qb-anchor-list', anchors);
 }
 
 function _qbInit() {

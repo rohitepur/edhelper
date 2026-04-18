@@ -491,6 +491,183 @@ function formatUserSlotValue(value, slot) {
 }
 
 /**
+ * Format a user-chosen answer/distractor value.
+ * `format` is { kind, places?, maxDenom? }. `kind` is one of:
+ * 'auto' | 'integer' | 'decimal' | 'fraction' | 'percent' | 'currency'.
+ * Non-numeric values are returned as-is (unless forced by kind).
+ */
+function formatUserAnswerValue(value, format) {
+    if (!format || !format.kind || format.kind === 'auto') {
+        if (typeof value === 'string') return value;
+        if (Number.isFinite(value)) {
+            if (Number.isInteger(value)) return value.toString();
+            return parseFloat(Number(value).toFixed(4)).toString();
+        }
+        return String(value);
+    }
+    var num = typeof value === 'number' ? value : parseFloat(value);
+    if (!Number.isFinite(num)) return String(value);
+    switch (format.kind) {
+        case 'integer':
+            return Math.round(num).toString();
+        case 'decimal': {
+            var places = format.places != null ? format.places : 2;
+            return num.toFixed(places);
+        }
+        case 'fraction':
+            return decimalToFractionString(num, format.maxDenom || 100);
+        case 'percent': {
+            var pPlaces = format.places != null ? format.places : 0;
+            var pVal = num * 100;
+            return (pPlaces ? pVal.toFixed(pPlaces) : Math.round(pVal).toString()) + '%';
+        }
+        case 'currency':
+            return '$' + num.toFixed(2);
+        default:
+            return String(value);
+    }
+}
+
+/**
+ * Convert a decimal to a simplified fraction string.
+ * Brute-force search: for each denominator d up to maxDenom, picks the
+ * closest n/d and keeps the best. This is simple, robust against float
+ * imprecision, and matches user expectations for small-denominator results.
+ * Handles negatives, mixed numbers, and near-integer inputs.
+ */
+function decimalToFractionString(value, maxDenom) {
+    if (!Number.isFinite(value)) return String(value);
+    var eps = 1e-9;
+    // Snap to integer when essentially whole (handles 0.9999999 etc.)
+    if (Math.abs(value - Math.round(value)) < eps) return Math.round(value).toString();
+
+    var sign = value < 0 ? '-' : '';
+    var x = Math.abs(value);
+    var whole = Math.floor(x);
+    var frac = x - whole;
+    // frac itself could be near-whole (near 0 or near 1); handle below via the
+    // "n === d" roll-over after best match is found.
+
+    var bestN = 0, bestD = 1, bestErr = frac; // baseline: rounding down to 0
+    // Also consider rounding up: candidate 1/1 = 1 inside the fractional range
+    if (1 - frac < bestErr) { bestN = 1; bestD = 1; bestErr = 1 - frac; }
+
+    for (var d = 2; d <= maxDenom; d++) {
+        var n = Math.round(frac * d);
+        if (n <= 0 || n > d) continue;
+        var err = Math.abs(n / d - frac);
+        if (err < bestErr) { bestN = n; bestD = d; bestErr = err; }
+        if (err < eps) break;
+    }
+
+    // Roll over if best match equals 1 (frac was near 1 after all)
+    if (bestN === bestD) { whole += 1; bestN = 0; bestD = 1; }
+    if (bestN === 0) return sign + whole.toString();
+
+    var g = _gcd(bestN, bestD);
+    bestN = bestN / g; bestD = bestD / g;
+    if (whole > 0) return sign + whole + ' ' + bestN + '/' + bestD;
+    return sign + bestN + '/' + bestD;
+}
+
+function _gcd(a, b) {
+    a = Math.abs(a); b = Math.abs(b);
+    while (b) { var t = b; b = a % b; a = t; }
+    return a || 1;
+}
+
+/**
+ * Try to split an expression string at its top-level (outside parens) '/'
+ * operator. Returns [numerator, denominator] string parts or null.
+ * The RIGHTMOST top-level '/' is used so left-associativity is preserved:
+ * "a / b / c" splits to ["a / b", "c"].
+ */
+function splitTopLevelDivide(expr) {
+    var depth = 0;
+    var lastSlash = -1;
+    for (var i = 0; i < expr.length; i++) {
+        var ch = expr.charAt(i);
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+        else if (ch === '/' && depth === 0) lastSlash = i;
+    }
+    if (lastSlash < 0) return null;
+    var num = expr.substring(0, lastSlash).trim();
+    var den = expr.substring(lastSlash + 1).trim();
+    if (!num || !den) return null;
+    return [num, den];
+}
+
+/**
+ * If the answer expression is a top-level quotient of integer-valued
+ * sub-expressions, compute it as an exact reduced fraction string (e.g.
+ * "3/17", "2 1/3"). Returns null when inapplicable so the caller can fall
+ * back to decimal→fraction approximation.
+ */
+function computeExactFractionFromExpr(expr, vals, slots) {
+    var parts = splitTopLevelDivide(expr);
+    if (!parts) return null;
+    function evalPart(p) {
+        var safe = p;
+        for (var k = 0; k < slots.length; k++) {
+            if (slots[k].name) {
+                safe = safe.replace(new RegExp('\\b' + slots[k].name + '\\b', 'g'), 'vals[' + k + ']');
+            }
+        }
+        if (!_isSafeExpr(safe)) return null;
+        try { return new Function('vals', 'return ' + safe)(vals); }
+        catch (e) { return null; }
+    }
+    var n = evalPart(parts[0]);
+    var d = evalPart(parts[1]);
+    if (!Number.isFinite(n) || !Number.isFinite(d) || d === 0) return null;
+    if (Math.abs(n - Math.round(n)) > 1e-9) return null;
+    if (Math.abs(d - Math.round(d)) > 1e-9) return null;
+    n = Math.round(n); d = Math.round(d);
+    if (d < 0) { n = -n; d = -d; }
+    var g = _gcd(Math.abs(n), d);
+    n = n / g; d = d / g;
+    return formatExactFraction(n, d);
+}
+
+/** Format an already-reduced integer fraction n/d as a display string. */
+function formatExactFraction(n, d) {
+    if (d === 1) return n.toString();
+    var sign = n < 0 ? '-' : '';
+    var absN = Math.abs(n);
+    if (absN >= d) {
+        var whole = Math.floor(absN / d);
+        var rem = absN - whole * d;
+        if (rem === 0) return sign + whole;
+        return sign + whole + ' ' + rem + '/' + d;
+    }
+    return sign + absN + '/' + d;
+}
+
+/**
+ * Resolve the answer's rendered string, preferring an exact fraction when
+ * the answer template points at a computed slot whose expression is a
+ * top-level quotient and the chosen answerFormat is 'fraction'. Falls back
+ * to the standard fillUserTemplate + applyUserAnswerFormat pipeline.
+ */
+function resolveAnswerText(descriptor, vals, slots) {
+    var rawAns = fillUserTemplate(descriptor.answerTemplate, vals, slots);
+    var fmt = descriptor.answerFormat;
+    if (fmt && fmt.kind === 'fraction') {
+        var m = /^\$?\{(\d+)\}$/.exec(String(descriptor.answerTemplate || '').trim());
+        if (m) {
+            var idx = parseInt(m[1]);
+            var slot = slots[idx];
+            if (slot && slot.type === 'computed' && slot.expression) {
+                var exact = computeExactFractionFromExpr(slot.expression, vals, slots);
+                if (exact != null) return exact;
+            }
+        }
+    }
+    return applyUserAnswerFormat(rawAns, fmt);
+}
+
+/**
  * Infer decimal places from an original value string.
  */
 function inferDecimalPlaces(original) {
@@ -526,6 +703,10 @@ function isValidExpression(expr) {
 
 /**
  * Generate a random value for a user-defined slot.
+ * If slot.allowedValues is a non-empty array, a value is picked uniformly
+ * from it (numeric entries are coerced to numbers when parseable). This
+ * overrides the min/max/step range. Integer/decimal/currency/percent slots
+ * honour slot.step to generate values at a given interval.
  */
 function generateUserSlotValue(slot) {
     // Operator variables: pick a random operator from the allowed set
@@ -533,9 +714,21 @@ function generateUserSlotValue(slot) {
         var ops = slot.operators || ['+', '-', '*', '/'];
         return ops[rand(0, ops.length - 1)];
     }
+    // Allowed-values override: works for any value type
+    if (Array.isArray(slot.allowedValues) && slot.allowedValues.length) {
+        var picked = slot.allowedValues[rand(0, slot.allowedValues.length - 1)];
+        if (typeof picked === 'string' && /^-?\d+(\.\d+)?$/.test(picked)) return parseFloat(picked);
+        return picked;
+    }
     switch (slot.type) {
-        case 'integer':
-            return rand(slot.min, slot.max);
+        case 'integer': {
+            var iStep = (slot.step != null && slot.step > 0) ? Math.round(slot.step) : 1;
+            if (iStep <= 1) return rand(slot.min, slot.max);
+            var lo = Math.ceil(slot.min / iStep);
+            var hi = Math.floor(slot.max / iStep);
+            if (hi < lo) return slot.min;
+            return rand(lo, hi) * iStep;
+        }
         case 'decimal': {
             var places = inferDecimalPlaces(slot.original);
             var scale = Math.pow(10, places);
@@ -562,17 +755,81 @@ function generateUserSlotValue(slot) {
             return slot.original;
         }
         case 'currency': {
-            var cMin = Math.round(slot.min * 100);
-            var cMax = Math.round(slot.max * 100);
-            return rand(cMin, cMax) / 100;
+            var cStep = (slot.step != null && slot.step > 0) ? slot.step : 0.01;
+            var cScale = Math.round(1 / cStep);
+            var cMin = Math.round(slot.min * cScale);
+            var cMax = Math.round(slot.max * cScale);
+            return rand(cMin, cMax) / cScale;
         }
-        case 'percent':
-            return rand(slot.min, slot.max);
+        case 'percent': {
+            var pStep = (slot.step != null && slot.step > 0) ? slot.step : 1;
+            if (pStep <= 1) return rand(slot.min, slot.max);
+            var pLo = Math.ceil(slot.min / pStep);
+            var pHi = Math.floor(slot.max / pStep);
+            if (pHi < pLo) return slot.min;
+            return rand(pLo, pHi) * pStep;
+        }
         case 'word-choice':
             return choose(slot.choices);
         default:
             return slot.original;
     }
+}
+
+/**
+ * Generate values for all slots, resolving computed expressions and respecting
+ * descriptor.constraint if present. Re-rolls independent slots up to 200 times
+ * to satisfy the constraint. If the constraint can never be satisfied the last
+ * rolled values are returned so the question still renders.
+ */
+function generateConstrainedValues(descriptor, slots) {
+    var maxAttempts = 200;
+    var vals;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+        vals = new Array(slots.length);
+        for (var i = 0; i < slots.length; i++) {
+            if (slots[i].type !== 'computed') vals[i] = generateUserSlotValue(slots[i]);
+        }
+        for (var j = 0; j < slots.length; j++) {
+            if (slots[j].type !== 'computed') continue;
+            var expr = slots[j].expression || '';
+            var safeExpr = expr;
+            for (var k = 0; k < slots.length; k++) {
+                if (slots[k].name) {
+                    safeExpr = safeExpr.replace(new RegExp('\\b' + slots[k].name + '\\b', 'g'), 'vals[' + k + ']');
+                }
+            }
+            if (isValidExpression(safeExpr)) {
+                try { vals[j] = new Function('vals', 'return ' + safeExpr)(vals); }
+                catch (e) { vals[j] = 0; }
+            } else { vals[j] = 0; }
+        }
+        if (!descriptor.constraint || !String(descriptor.constraint).trim()) return vals;
+        if (evaluateConstraint(descriptor.constraint, vals, slots)) return vals;
+    }
+    return vals;
+}
+
+/**
+ * Evaluate a constraint expression against generated values.
+ * Variable names are substituted for vals[N]. Returns true on any error so
+ * malformed constraints don't deadlock the generator.
+ */
+function evaluateConstraint(expr, vals, slots) {
+    var safe = String(expr);
+    for (var k = 0; k < slots.length; k++) {
+        if (slots[k].name) {
+            safe = safe.replace(new RegExp('\\b' + slots[k].name + '\\b', 'g'), 'vals[' + k + ']');
+        }
+    }
+    // Allow a superset of operators used by constraints
+    var stripped = safe
+        .replace(/vals\[\d+\]/g, '')
+        .replace(/Math\.[A-Za-z_0-9]+/g, '')
+        .replace(/===|!==|==|!=|<=|>=|&&|\|\||[0-9+\-*/().,%\s<>!]/g, '');
+    if (stripped.length) return true;
+    try { return !!(new Function('vals', 'return (' + safe + ');')(vals)); }
+    catch (e) { return true; }
 }
 
 /**
@@ -583,47 +840,63 @@ function rehydrateUserDefined(descriptor) {
         type: 'dynamic-user', anchor: 'Dynamic question (user-defined)', openEnded: false,
         gen: function() {
             var slots = descriptor.slots;
-            var vals = new Array(slots.length);
-
-            // Pass 1: generate random values for non-computed slots (values + operators)
-            for (var i = 0; i < slots.length; i++) {
-                if (slots[i].type !== 'computed') {
-                    vals[i] = generateUserSlotValue(slots[i]);
-                }
-            }
-
-            // Pass 2: evaluate computed slots using their expressions
-            for (var j = 0; j < slots.length; j++) {
-                if (slots[j].type === 'computed') {
-                    var expr = slots[j].expression;
-                    // Replace variable names with vals[index]
-                    var safeExpr = expr;
-                    for (var k = 0; k < slots.length; k++) {
-                        if (slots[k].name) {
-                            safeExpr = safeExpr.replace(new RegExp('\\b' + slots[k].name + '\\b', 'g'), 'vals[' + k + ']');
-                        }
-                    }
-                    if (isValidExpression(safeExpr)) {
-                        try {
-                            vals[j] = new Function('vals', 'return ' + safeExpr)(vals);
-                        } catch (e) {
-                            vals[j] = 0;
-                        }
-                    } else {
-                        vals[j] = 0;
-                    }
-                }
-            }
+            var vals = generateConstrainedValues(descriptor, slots);
 
             // Fill templates with generated values
             var q = fillUserTemplate(descriptor.textTemplate, vals, slots);
-            var ans = fillUserTemplate(descriptor.answerTemplate, vals, slots);
+            var ans = resolveAnswerText(descriptor, vals, slots);
 
             var distractors = [];
-            if (descriptor.distractorTemplates) {
-                distractors = descriptor.distractorTemplates.map(function(tmpl) {
-                    return fillUserTemplate(tmpl, vals, slots);
+            if (descriptor.distractorTemplates && descriptor.distractorTemplates.length) {
+                distractors = descriptor.distractorTemplates.map(function(tmpl, idx) {
+                    var raw = fillUserTemplate(tmpl, vals, slots);
+                    var fmt = (descriptor.distractorFormats && descriptor.distractorFormats[idx]) || descriptor.answerFormat;
+                    return applyUserAnswerFormat(raw, fmt);
+                }).filter(function (s) { return s && s.length; });
+            }
+
+            // Evaluate free-form distractor expressions (the "Wrong 1/2/3" inputs)
+            if (distractors.length === 0 && descriptor.distractorExprs && descriptor.distractorExprs.length) {
+                descriptor.distractorExprs.forEach(function (expr, dIdx) {
+                    if (!expr || !String(expr).trim()) return;
+                    expr = String(expr).trim();
+                    var safeExpr = expr;
+                    var hasVarRef = false;
+                    for (var di = 0; di < slots.length; di++) {
+                        if (slots[di].name && new RegExp('\\b' + slots[di].name + '\\b').test(safeExpr)) {
+                            safeExpr = safeExpr.replace(new RegExp('\\b' + slots[di].name + '\\b', 'g'), 'vals[' + di + ']');
+                            hasVarRef = true;
+                        }
+                    }
+                    var fmt = (descriptor.distractorFormats && descriptor.distractorFormats[dIdx]) || descriptor.answerFormat;
+                    var formatted;
+                    if (hasVarRef && isValidExpression(safeExpr)) {
+                        try {
+                            var val = new Function('vals', 'return ' + safeExpr)(vals);
+                            if (val == null) return;
+                            if (typeof val === 'number' && fmt && fmt.kind && fmt.kind !== 'auto' && fmt.kind !== 'inherit') {
+                                formatted = formatUserAnswerValue(val, fmt);
+                            } else {
+                                formatted = typeof val === 'number'
+                                    ? (Number.isInteger(val) ? val.toString() : parseFloat(val.toFixed(4)).toString())
+                                    : String(val);
+                            }
+                        } catch (e) { return; }
+                    } else {
+                        formatted = (fmt && fmt.kind && fmt.kind !== 'auto' && fmt.kind !== 'inherit')
+                            ? applyUserAnswerFormat(expr, fmt)
+                            : expr;
+                    }
+                    if (formatted && formatted !== ans) distractors.push(formatted);
                 });
+            }
+
+            // Final fallback: auto-generate format-aware distractors so saved
+            // MC questions without explicit wrong answers still render options
+            // in the same format as the correct answer (fraction → fractions,
+            // percent → percents, etc.).
+            if (distractors.length === 0 && !descriptor.openEnded && descriptor.questionType !== 'oe') {
+                distractors = autoGenerateDistractors(ans, descriptor.answerFormat, vals);
             }
 
             var guide = '';
@@ -634,6 +907,122 @@ function rehydrateUserDefined(descriptor) {
             return { q: q, ans: ans, distractors: distractors, guide: guide };
         }
     };
+}
+
+/**
+ * Parse a formatted answer string back into a raw numeric value. Handles
+ * fractions ("3/4", "1 1/2"), currency ("$1.25"), and percent ("75%").
+ * Percent strings return the 0-1 fraction (e.g. "75%" -> 0.75) so they
+ * round-trip cleanly through formatUserAnswerValue(x, {kind:'percent'}).
+ * Returns NaN if not parseable.
+ */
+function parseFormattedNumber(str) {
+    if (str == null) return NaN;
+    var s = String(str).trim();
+    if (!s) return NaN;
+    // Negative sign handling
+    var sign = 1;
+    if (s.charAt(0) === '-') { sign = -1; s = s.slice(1).trim(); }
+    // Mixed number "1 1/2"
+    var mix = /^(\d+)\s+(\d+)\/(\d+)$/.exec(s);
+    if (mix) return sign * (parseInt(mix[1]) + parseInt(mix[2]) / parseInt(mix[3]));
+    // Fraction "3/4"
+    var frac = /^(\d+)\/(\d+)$/.exec(s);
+    if (frac) {
+        var denom = parseInt(frac[2]);
+        if (denom === 0) return NaN;
+        return sign * parseInt(frac[1]) / denom;
+    }
+    var hadDollar = s.charAt(0) === '$'; if (hadDollar) s = s.slice(1);
+    var hadPercent = s.charAt(s.length - 1) === '%'; if (hadPercent) s = s.slice(0, -1);
+    if (!/^\d+(\.\d+)?$/.test(s)) return NaN;
+    var n = sign * parseFloat(s);
+    if (hadPercent) n = n / 100;
+    return n;
+}
+
+/**
+ * Generate plausible wrong-answer distractors in the same format as the
+ * correct answer. Distractors are kept close to the answer via magnitude-
+ * scaled multiplicative + small additive offsets (not raw operand values,
+ * which for a small fraction answer would produce wildly distant numbers).
+ * Returns up to 3 unique strings.
+ */
+function autoGenerateDistractors(ans, format, vals) {
+    var ansVal = parseFormattedNumber(ans);
+    if (!Number.isFinite(ansVal)) return [];
+    format = format || { kind: 'auto' };
+    var kind = format.kind || 'auto';
+    var distractors = [];
+    var seen = {}; seen[ans] = true;
+
+    // Multiplicative near-by candidates — these scale with magnitude, so
+    // "answer 1/3" and "answer 120" both get plausibly-close wrong options.
+    var multiplicative = [1.1, 0.9, 1.25, 0.75, 1.5, 0.5, 1.2, 0.8, 2, 1.05, 0.95];
+    var candidates = [];
+    multiplicative.forEach(function (f) {
+        if (Math.abs(ansVal) > 1e-12) candidates.push(ansVal * f);
+    });
+
+    // Small additive offsets appropriate to the format
+    var mag = Math.max(1, Math.abs(ansVal));
+    var adds;
+    if (kind === 'fraction') {
+        adds = [1 / 2, 1 / 3, 1 / 4, 1 / 5, 1 / 6, 1 / 8, 2 / 3, 3 / 4, 1 / 12];
+    } else if (kind === 'percent') {
+        adds = [0.01, 0.02, 0.05, 0.10];
+    } else if (kind === 'currency' || kind === 'decimal') {
+        var places = format.places != null ? format.places : 2;
+        var step = Math.pow(10, -places);
+        adds = [step, 10 * step, 0.1 * mag, 0.25 * mag];
+    } else if (kind === 'integer' || Number.isInteger(ansVal)) {
+        var r = Math.max(1, Math.round(mag * 0.1));
+        adds = [1, 2, r, Math.round(r / 2) || 1, r * 2];
+    } else {
+        adds = [0.1 * mag, 0.25 * mag, 1, 2];
+    }
+    adds.forEach(function (inc) {
+        candidates.push(ansVal + inc);
+        candidates.push(ansVal - inc);
+    });
+
+    var allowNonPositive = kind === 'percent' || kind === 'fraction' || ansVal < 0;
+    for (var ci = 0; ci < candidates.length && distractors.length < 3; ci++) {
+        var cand = candidates[ci];
+        if (!Number.isFinite(cand)) continue;
+        if (!allowNonPositive && cand <= 0) continue;
+        // For integer format, round each candidate so near-duplicates collapse
+        if (kind === 'integer' || (kind === 'auto' && Number.isInteger(ansVal))) {
+            cand = Math.round(cand);
+            if (cand === Math.round(ansVal)) continue;
+        }
+        var str = formatUserAnswerValue(cand, format);
+        if (!seen[str]) { seen[str] = true; distractors.push(str); }
+    }
+
+    // Jitter fallback, still magnitude-scaled so results stay near the answer
+    var safety = 0;
+    while (distractors.length < 3 && safety++ < 80) {
+        var frac = (Math.random() * 0.4 + 0.05) * (Math.random() < 0.5 ? 1 : -1);
+        var r = ansVal + mag * frac;
+        if (!allowNonPositive && r <= 0) continue;
+        var rStr = formatUserAnswerValue(r, format);
+        if (!seen[rStr]) { seen[rStr] = true; distractors.push(rStr); }
+    }
+
+    return distractors.slice(0, 3);
+}
+
+/**
+ * Apply answer format to a rendered template string. Only reformats if the
+ * rendered string parses cleanly as a number (e.g. "3", "0.75", "$1.20",
+ * "75%"); otherwise the original string is returned unchanged.
+ */
+function applyUserAnswerFormat(str, format) {
+    if (!format || !format.kind || format.kind === 'auto') return str;
+    var num = parseFormattedNumber(str);
+    if (!Number.isFinite(num)) return str;
+    return formatUserAnswerValue(num, format);
 }
 
 /**
