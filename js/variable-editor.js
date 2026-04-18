@@ -185,6 +185,9 @@ class VariableEditor {
       if (this.questionType === 'mc') {
         tplSection.appendChild(this._buildDistractorConfig());
       }
+
+      // Guide / hint template
+      tplSection.appendChild(this._buildTemplateField('Hint / Guide (optional)', 'guideTemplate', this.guideTemplate, 'e.g. Add {{a}} and {{b}} to get the answer'));
     }
     c.appendChild(tplSection);
 

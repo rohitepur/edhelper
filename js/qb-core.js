@@ -286,17 +286,18 @@ async function qbSaveAI() {
     if (!QBState.aiQs.length) { st.textContent = 'No questions to save.'; st.className = 'admin-status err'; return; }
     if (typeof fbSaveCustomSkill !== 'function') { st.textContent = 'Firebase not ready.'; st.className = 'admin-status err'; return; }
     const which = document.querySelector('input[name="qb-ai-which"]:checked').value;
-    const cat = document.getElementById('qb-ai-cat').value;
-    const grade = document.getElementById('qb-ai-grade').value;
+    const cat = document.getElementById('qb-ai-cat').value.trim();
+    const grade = document.getElementById('qb-ai-grade').value.trim();
     const anchor = document.getElementById('qb-ai-anchor').value.trim();
+    const cls = (document.getElementById('qb-ai-class') || {}).value || '';
     const veDesc = _getVariableDescriptor('ai');
     st.innerHTML = '<span class="admin-loading"></span> Saving...'; st.className = 'admin-status';
     try {
         if (which === 'all') {
-            await qbDoSave(name, anchor, cat, grade, QBState.aiQs, veDesc);
+            await qbDoSave(name, anchor, cat, grade, QBState.aiQs, veDesc, cls.trim());
         } else {
             for (let i = 0; i < QBState.aiQs.length; i++) {
-                await qbDoSave(name + ' ' + (i + 1), anchor, cat, grade, [QBState.aiQs[i]], veDesc);
+                await qbDoSave(name + ' ' + (i + 1), anchor, cat, grade, [QBState.aiQs[i]], veDesc, cls.trim());
             }
         }
         st.textContent = 'Saved! Questions are now in your Question Bank.';
@@ -430,13 +431,14 @@ async function qbSaveClone() {
     if (!name) { st.textContent = 'Please enter a skill name.'; st.className = 'admin-status err'; return; }
     if (!QBState.cloneQs.length) { st.textContent = 'No questions to save.'; st.className = 'admin-status err'; return; }
     if (typeof fbSaveCustomSkill !== 'function') { st.textContent = 'Firebase not ready.'; st.className = 'admin-status err'; return; }
-    const cat = document.getElementById('qb-clone-cat').value;
-    const grade = document.getElementById('qb-clone-grade').value;
+    const cat = document.getElementById('qb-clone-cat').value.trim();
+    const grade = document.getElementById('qb-clone-grade').value.trim();
     const anchor = document.getElementById('qb-clone-anchor').value.trim();
+    const cls = (document.getElementById('qb-clone-class') || {}).value || '';
     const veDesc = _getVariableDescriptor('clone');
     st.innerHTML = '<span class="admin-loading"></span> Saving...'; st.className = 'admin-status';
     try {
-        await qbDoSave(name, anchor, cat, grade, QBState.cloneQs, veDesc);
+        await qbDoSave(name, anchor, cat, grade, QBState.cloneQs, veDesc, cls.trim());
         st.textContent = 'Saved! Questions are now in your Question Bank.';
         st.className = 'admin-status ok';
         await qbLoadSkills();
@@ -480,6 +482,16 @@ function qbManInitEditor() {
     const editor = new VariableEditor(veEl, {
         onChange: function () {
             QBState.manVarEditor = editor;
+            // Sync visual slot bar with question type
+            const isOE = editor.questionType === 'oe';
+            document.querySelectorAll('.qb-vis-slot-mc').forEach(b => b.style.display = isOE ? 'none' : '');
+            const ansBtn = document.getElementById('qb-vis-slot-answer');
+            if (ansBtn) ansBtn.style.display = isOE ? '' : 'none';
+            if (isOE && ['A', 'B', 'C', 'D'].includes(QBState.manVisualSlot)) {
+                qbManVisualSlot('question', document.getElementById('qb-vis-slot-q'));
+            } else if (!isOE && QBState.manVisualSlot === 'answer') {
+                qbManVisualSlot('question', document.getElementById('qb-vis-slot-q'));
+            }
         }
     });
     editor.loadQuestion('', '', [], '');
@@ -488,9 +500,9 @@ function qbManInitEditor() {
 
 function qbManAddQuestion() {
     const st = document.getElementById('qb-man-status');
-    const guide = document.getElementById('qb-man-guide').value.trim();
 
     if (!QBState.manVarEditor) { st.textContent = 'Editor not ready.'; st.className = 'admin-status err'; return; }
+    const guide = (QBState.manVarEditor.guideTemplate || '').trim();
 
     const editor = QBState.manVarEditor;
     const qTemplate = editor.questionTemplate.trim();
@@ -507,21 +519,66 @@ function qbManAddQuestion() {
         st.textContent = 'Error: ' + e.message; st.className = 'admin-status err'; return;
     }
 
+    // Collect visual aids for all slots
+    QBState.manVisualSlots[QBState.manVisualSlot] = QBState.manVisualType !== 'none' ? qbBuildVisualConfig() : { type: 'none' };
+
+    let visualHTML = '';
+    let optionVisuals = null;
+    let answerVisual = null;
+
+    // Question visual
+    const qVis = QBState.manVisualSlots['question'];
+    if (qVis && qVis.type !== 'none') {
+        visualHTML = qbRenderVisualSVG(qVis);
+    }
+
+    // Option visuals (A, B, C, D) for MC
+    const isOE = varDesc.questionType === 'oe';
+    if (!isOE) {
+        const ov = {};
+        let hasAny = false;
+        ['A', 'B', 'C', 'D'].forEach(letter => {
+            const cfg = QBState.manVisualSlots[letter];
+            if (cfg && cfg.type !== 'none') {
+                ov[letter] = { config: cfg, visualHTML: qbRenderVisualSVG(cfg) };
+                hasAny = true;
+            }
+        });
+        if (hasAny) optionVisuals = ov;
+    }
+
+    // Answer visual (OE)
+    if (isOE) {
+        const aCfg = QBState.manVisualSlots['answer'];
+        if (aCfg && aCfg.type !== 'none') {
+            answerVisual = { config: aCfg, visualHTML: qbRenderVisualSVG(aCfg) };
+        }
+    }
+
     // Store the template text as the question text (it will be regenerated with real values when added to test)
     QBState.manQs.push({
         text: qTemplate,
         options: [],
         correct: '',
         guide: guide,
-        openEnded: false,
+        openEnded: isOE,
         isCustom: true,
-        variableDescriptor: varDesc
+        variableDescriptor: varDesc,
+        visualHTML: visualHTML,
+        optionVisuals: optionVisuals,
+        answerVisual: answerVisual
     });
 
     st.textContent = 'Added! Total: ' + QBState.manQs.length; st.className = 'admin-status ok';
 
-    // Reset editor
-    document.getElementById('qb-man-guide').value = '';
+    // Reset editor and visuals
+    QBState.manVisualType = 'none';
+    QBState.manVisualSlot = 'question';
+    QBState.manVisualSlots = {};
+    qbRestoreVisualConfig({ type: 'none' });
+    document.querySelectorAll('.qb-vis-slot-btn').forEach(b => b.classList.remove('active', 'has-vis'));
+    const qSlotBtn = document.getElementById('qb-vis-slot-q');
+    if (qSlotBtn) qSlotBtn.classList.add('active');
     qbManInitEditor();
 
     qbRenderQCards('qb-man-preview', QBState.manQs, 'man');
@@ -532,9 +589,7 @@ function qbManCopy(idx) {
     const q = QBState.manQs[idx];
     if (!q) return;
 
-    document.getElementById('qb-man-guide').value = q.guide || '';
-
-    // Load the variable descriptor into the editor
+    // Load the variable descriptor into the editor (guide is inside the editor now)
     if (q.variableDescriptor && QBState.manVarEditor) {
         QBState.manVarEditor.setFromDescriptor(q.variableDescriptor);
     } else if (QBState.manVarEditor) {
@@ -559,12 +614,13 @@ async function qbSaveManual() {
     if (!name) { st.textContent = 'Please enter a skill name.'; st.className = 'admin-status err'; return; }
     if (!QBState.manQs.length) { st.textContent = 'Add at least one question first.'; st.className = 'admin-status err'; return; }
     if (typeof fbSaveCustomSkill !== 'function') { st.textContent = 'Firebase not ready.'; st.className = 'admin-status err'; return; }
-    const cat = document.getElementById('qb-man-cat').value;
-    const grade = document.getElementById('qb-man-grade').value;
+    const cat = document.getElementById('qb-man-cat').value.trim();
+    const grade = document.getElementById('qb-man-grade').value.trim();
     const anchor = document.getElementById('qb-man-anchor').value.trim();
+    const cls = (document.getElementById('qb-man-class') || {}).value || '';
     st.innerHTML = '<span class="admin-loading"></span> Saving...'; st.className = 'admin-status';
     try {
-        await qbDoSave(name, anchor, cat, grade, QBState.manQs);
+        await qbDoSave(name, anchor, cat, grade, QBState.manQs, null, cls.trim());
         st.textContent = 'Saved! Template is now in your Question Bank.';
         st.className = 'admin-status ok';
         QBState.manQs = [];
@@ -976,7 +1032,7 @@ function qbRestoreVisualConfig(visual) {
 // ========================
 // SHARED: FIREBASE SAVE
 // ========================
-async function qbDoSave(name, anchor, cat, grade, questions, variableDescriptor) {
+async function qbDoSave(name, anchor, cat, grade, questions, variableDescriptor, skillClass) {
     let retries = 0;
     while (typeof fbSaveCustomSkill !== 'function' && retries++ < 20) {
         await new Promise(r => setTimeout(r, 150));
@@ -989,8 +1045,9 @@ async function qbDoSave(name, anchor, cat, grade, questions, variableDescriptor)
         type,
         name,
         anchor: anchor || '',
-        category: cat,
-        grade,
+        category: cat || '',
+        grade: grade || '',
+        skillClass: skillClass || '',
         questions: questions.map(q => ({
             text: q.text,
             questionHTML: q.text,
@@ -1152,6 +1209,7 @@ async function qbLoadSkills() {
             await new Promise(r => setTimeout(r, 200));
         }
         QBState.skillsCache = await fbGetCustomSkills() || {};
+        _qbPopulateSavedFilters();
         qbRenderSkills();
     } catch (e) {
         list.innerHTML = '<div class="admin-empty">Error loading: ' + escHtml(e.message) + '</div>';
@@ -1514,6 +1572,66 @@ function _getVariableDescriptor(tabName) {
 // ========================
 // INIT
 // ========================
+function _qbPopulateSavedFilters() {
+    const grades = new Set(['3','4','5','6','7','8','algebra1']);
+    const cats = new Set(['pssa','keystone','custom']);
+    Object.values(QBState.skillsCache || {}).forEach(sk => {
+        if (sk.grade) grades.add(sk.grade);
+        if (sk.category) cats.add(sk.category);
+    });
+
+    const gradeSel = document.getElementById('qb-filter-grade');
+    const catSel = document.getElementById('qb-filter-cat');
+    if (!gradeSel || !catSel) return;
+
+    const curGrade = gradeSel.value;
+    const curCat = catSel.value;
+
+    const gradeLabel = g => g === 'algebra1' ? 'Keystone Algebra' : (/^\d+$/.test(g) ? 'Grade ' + g : g);
+    gradeSel.innerHTML = '<option value="all">All Grades</option>' +
+        Array.from(grades).sort((a, b) => {
+            const na = parseInt(a), nb = parseInt(b);
+            if (!isNaN(na) && !isNaN(nb)) return na - nb;
+            if (!isNaN(na)) return -1;
+            if (!isNaN(nb)) return 1;
+            return a.localeCompare(b);
+        }).map(g => `<option value="${g}">${gradeLabel(g)}</option>`).join('');
+    gradeSel.value = curGrade || 'all';
+
+    catSel.innerHTML = '<option value="all">All Categories</option>' +
+        Array.from(cats).sort().map(c => `<option value="${c}">${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join('');
+    catSel.value = curCat || 'all';
+}
+
+async function _qbPopulateMetadataLists() {
+    const categories = new Set(['PSSA', 'Keystone', 'Custom']);
+    const grades = new Set(['3', '4', '5', '6', '7', '8', 'algebra1']);
+    const classes = new Set();
+
+    // Pull existing values from saved skills
+    try {
+        Object.values(QBState.skillsCache || {}).forEach(sk => {
+            if (sk.category) categories.add(sk.category);
+            if (sk.grade) grades.add(sk.grade);
+            if (sk.skillClass) classes.add(sk.skillClass);
+        });
+    } catch(e) { /* ignore */ }
+
+    // Pull class IDs from class data
+    if (typeof fbGetClassData === 'function') {
+        try { Object.keys(await fbGetClassData()).forEach(k => classes.add(k)); } catch(e) { /* ignore */ }
+    }
+
+    function fill(id, values) {
+        const dl = document.getElementById(id);
+        if (!dl) return;
+        dl.innerHTML = Array.from(values).sort().map(v => '<option value="' + escHtml(v) + '">').join('');
+    }
+    fill('qb-cat-list', categories);
+    fill('qb-grade-list', grades);
+    fill('qb-class-list', classes);
+}
+
 function _qbInit() {
     // Initialize the variable editor in the manual tab
     qbManInitEditor();
@@ -1522,7 +1640,7 @@ function _qbInit() {
     const tryLoad = setInterval(() => {
         if (typeof fbGetCustomSkills === 'function') {
             clearInterval(tryLoad);
-            qbLoadSkills();
+            qbLoadSkills().then(() => _qbPopulateMetadataLists());
         }
     }, 200);
     setTimeout(() => clearInterval(tryLoad), 10000);

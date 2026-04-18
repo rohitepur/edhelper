@@ -633,6 +633,11 @@ async function tbSaveTest() {
         ? { id: testId, name: name, dynamic: true, descriptors: dynQs.map(function(q) { return q._descriptor; }), staticQuestions: clean, createdAt: new Date().toLocaleDateString() }
         : { id: testId, name: name, createdAt: new Date().toLocaleDateString(), questions: clean };
 
+    // Attach metadata
+    var _cat = document.getElementById('tb-category'); if (_cat && _cat.value.trim()) td.category = _cat.value.trim();
+    var _grd = document.getElementById('tb-test-grade'); if (_grd && _grd.value.trim()) td.testGrade = _grd.value.trim();
+    var _cls = document.getElementById('tb-test-class'); if (_cls && _cls.value.trim()) td.testClass = _cls.value.trim();
+
     try {
         var retries = 0;
         while (typeof fbSaveCustomTest !== 'function' && retries++ < 20) await new Promise(function(r) { setTimeout(r, 150); });
@@ -685,6 +690,11 @@ async function tbSaveTestOnly() {
         ? { id: testId, name: name, dynamic: true, descriptors: dynQs.map(function(q) { return q._descriptor; }), staticQuestions: clean, createdAt: new Date().toLocaleDateString() }
         : { id: testId, name: name, createdAt: new Date().toLocaleDateString(), questions: clean };
 
+    // Attach metadata
+    var _cat = document.getElementById('tb-category'); if (_cat && _cat.value.trim()) td.category = _cat.value.trim();
+    var _grd = document.getElementById('tb-test-grade'); if (_grd && _grd.value.trim()) td.testGrade = _grd.value.trim();
+    var _cls = document.getElementById('tb-test-class'); if (_cls && _cls.value.trim()) td.testClass = _cls.value.trim();
+
     try {
         var retries = 0;
         while (typeof fbSaveCustomTest !== 'function' && retries++ < 20) await new Promise(function(r) { setTimeout(r, 150); });
@@ -712,6 +722,9 @@ async function tbLoadSavedTest() {
     var testId = entries[idx][0], testData = entries[idx][1];
     TBState.currentTestId = testId;
     document.getElementById('tb-name').value = testData.name || '';
+    var _catEl = document.getElementById('tb-category'); if (_catEl) _catEl.value = testData.category || '';
+    var _grdEl = document.getElementById('tb-test-grade'); if (_grdEl) _grdEl.value = testData.testGrade || '';
+    var _clsEl = document.getElementById('tb-test-class'); if (_clsEl) _clsEl.value = testData.testClass || '';
     TBState.questions.length = 0;
     TBState.editing.clear(); TBState.selected.clear();
     var qs = testData.questions || testData.staticQuestions || [];
@@ -734,7 +747,7 @@ function tbConstructItem(template, difficulty) {
     }
     var raw;
     try { raw = template.gen(); } finally { window.rand = origRand; }
-    var item = { text: raw.q, correct: String(raw.ans), guide: raw.guide || '', render: raw.render || null, openEnded: template.openEnded || false, isCustom: true, _dynamic: false, _descriptor: null, _equation: null, _drawingDataUrl: null, _skillType: template.type };
+    var item = { text: raw.q, correct: String(raw.ans), guide: raw.guide || '', render: raw.render || null, openEnded: template.openEnded || false, isCustom: true, _dynamic: false, _descriptor: null, _equation: null, _drawingDataUrl: null, _skillType: template.type, visualHTML: raw.visualHTML || '', answerVisual: raw.answerVisual || null, optionVisuals: null };
     if (!template.openEnded && raw.distractors) {
         var all = [String(raw.ans)].concat(raw.distractors.map(String));
         var u = []; var seen = {};
@@ -743,6 +756,15 @@ function tbConstructItem(template, difficulty) {
         u = u.slice(0, 4);
         item.options = u.map(function(c, i) { return String.fromCharCode(65 + i) + ') ' + c; });
         item.correct = String(raw.ans);
+        // Remap option visuals from text-keyed to letter-keyed after shuffle
+        if (raw.optionVisualsByText) {
+            var ov = {};
+            u.forEach(function(c, i) {
+                var letter = String.fromCharCode(65 + i);
+                if (raw.optionVisualsByText[c]) ov[letter] = raw.optionVisualsByText[c];
+            });
+            if (Object.keys(ov).length) item.optionVisuals = ov;
+        }
     }
     return item;
 }
@@ -1164,14 +1186,53 @@ async function tbLoadSavedSkills() {
     if (!TBState.savedSkillsCache) {
         document.getElementById('saved-skill-list').innerHTML = '<div class="tb-empty" style="padding:1rem;">Loading...</div>';
         try {
-            var raw = await fbGetCustomSkills();
+            var timeout = new Promise(function(_, reject) { setTimeout(function() { reject(new Error('Firestore request timed out')); }, 10000); });
+            var raw = await Promise.race([fbGetCustomSkills(), timeout]);
             TBState.savedSkillsCache = Object.entries(raw).map(function(pair) { return Object.assign({ id: pair[0] }, pair[1]); });
         } catch(e) {
-            document.getElementById('saved-skill-list').innerHTML = '<div class="tb-empty" style="padding:1rem;">Error loading skills.</div>';
+            document.getElementById('saved-skill-list').innerHTML = '<div class="tb-empty" style="padding:1rem;">Error loading skills. Check connection & retry.</div>';
+            console.error('tbLoadSavedSkills:', e);
             return;
         }
     }
+    tbPopulateSavedFilters();
     tbRenderSavedSkills();
+}
+
+function tbPopulateSavedFilters() {
+    if (!TBState.savedSkillsCache) return;
+    var grades = new Set(['3','4','5','6','7','8','algebra1']);
+    var cats = new Set(['pssa','keystone']);
+    TBState.savedSkillsCache.forEach(function(s) {
+        if (s.grade) grades.add(s.grade);
+        if (s.category) cats.add(s.category);
+    });
+
+    var gradeSel = document.getElementById('saved-grade');
+    var catSel = document.getElementById('saved-cat');
+    if (!gradeSel || !catSel) return;
+
+    var curGrade = gradeSel.value;
+    var curCat = catSel.value;
+
+    var gradeLabel = function(g) {
+        if (g === 'algebra1') return 'Keystone Algebra';
+        if (/^\d+$/.test(g)) return 'Grade ' + g;
+        return g;
+    };
+    gradeSel.innerHTML = '<option value="all">All Grades</option>' +
+        Array.from(grades).sort(function(a, b) {
+            var na = parseInt(a), nb = parseInt(b);
+            if (!isNaN(na) && !isNaN(nb)) return na - nb;
+            if (!isNaN(na)) return -1;
+            if (!isNaN(nb)) return 1;
+            return a.localeCompare(b);
+        }).map(function(g) { return '<option value="' + g + '">' + gradeLabel(g) + '</option>'; }).join('');
+    gradeSel.value = curGrade || 'all';
+
+    catSel.innerHTML = '<option value="all">All</option>' +
+        Array.from(cats).sort().map(function(c) { return '<option value="' + c + '">' + c.charAt(0).toUpperCase() + c.slice(1) + '</option>'; }).join('');
+    catSel.value = curCat || 'all';
 }
 
 function tbRenderSavedSkills() {
@@ -1486,7 +1547,8 @@ async function tbSaveToLibrary() {
 async function loadCustomSkillsIntoPool() {
     if (typeof fbGetCustomSkills !== 'function' || typeof extraTemplates === 'undefined') return;
     try {
-        var skills = await fbGetCustomSkills();
+        var _timeout = new Promise(function(_, reject) { setTimeout(function() { reject(new Error('Firestore request timed out')); }, 10000); });
+        var skills = await Promise.race([fbGetCustomSkills(), _timeout]);
         Object.entries(skills).forEach(function(pair) {
             var id = pair[0], skill = pair[1];
             var cat = skill.category || 'pssa';
@@ -1742,6 +1804,53 @@ function tbToggleAccordion(sectionId, btn) {
     if (arrow) arrow.textContent = isOpen ? '\u25B6' : '\u25BC';
 }
 
+// ===== POPULATE METADATA DATALISTS =====
+async function tbPopulateMetadataLists() {
+    var catList = document.getElementById('tb-category-list');
+    var grdList = document.getElementById('tb-test-grade-list');
+    var clsList = document.getElementById('tb-test-class-list');
+    if (!catList || !grdList || !clsList) return;
+
+    // Defaults
+    var categories = new Set(['PSSA', 'Keystone']);
+    var grades = new Set(['3', '4', '5', '6', '7', '8']);
+    var classes = new Set();
+
+    // Pull existing values from saved tests
+    var retries = 0;
+    while (typeof fbGetCustomTests !== 'function' && retries++ < 20) await new Promise(function(r) { setTimeout(r, 150); });
+    if (typeof fbGetCustomTests === 'function') {
+        try {
+            var tests = await fbGetCustomTests();
+            Object.values(tests).forEach(function(t) {
+                if (t.category) categories.add(t.category);
+                if (t.testGrade) grades.add(t.testGrade);
+                if (t.testClass) classes.add(t.testClass);
+            });
+        } catch(e) { /* ignore */ }
+    }
+
+    // Pull class IDs from class data
+    if (typeof fbGetClassData === 'function') {
+        try {
+            var classData = await fbGetClassData();
+            Object.keys(classData).forEach(function(k) { classes.add(k); });
+        } catch(e) { /* ignore */ }
+    }
+
+    function fillDatalist(dl, values) {
+        dl.innerHTML = '';
+        Array.from(values).sort().forEach(function(v) {
+            var opt = document.createElement('option');
+            opt.value = v;
+            dl.appendChild(opt);
+        });
+    }
+    fillDatalist(catList, categories);
+    fillDatalist(grdList, grades);
+    fillDatalist(clsList, classes);
+}
+
 // ===== INIT =====
 function tbInit() {
     tbRender();
@@ -1762,6 +1871,7 @@ function tbInit() {
 
     tbInitAIKey();
     tbLoadSavedSkills();
+    tbPopulateMetadataLists();
 
     // Keyboard shortcuts
     document.addEventListener('keydown', function(e) {

@@ -238,44 +238,14 @@
             <h3>Save Test</h3>
             <div class="tb-form-grid">
                 <div style="grid-column:1/-1;"><label>Test Name</label><input type="text" id="tb-name" placeholder="e.g. Chapter 4 Review"></div>
+                <div><label>Category</label><input type="text" id="tb-category" class="text-input" list="tb-category-list" placeholder="e.g. PSSA, Keystone"><datalist id="tb-category-list"></datalist></div>
+                <div><label>Grade</label><input type="text" id="tb-test-grade" class="text-input" list="tb-test-grade-list" placeholder="e.g. 3, 4, 8"><datalist id="tb-test-grade-list"></datalist></div>
+                <div><label>Class</label><input type="text" id="tb-test-class" class="text-input" list="tb-test-class-list" placeholder="e.g. alg1, 6/7"><datalist id="tb-test-class-list"></datalist></div>
             </div>
             <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap;">
                 <button class="btn" onclick="tbSaveTestOnly()">Save Test</button>
-                <button class="btn" style="background:var(--bg-surface);color:var(--primary-color);border:1px solid var(--primary-color);" onclick="document.getElementById('tb-assign-section').style.display=document.getElementById('tb-assign-section').style.display===''?'none':''">Assign Now</button>
-            </div>
-            <div id="tb-assign-section" style="display:none;margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border-color-light);">
-                <div style="font-size:0.75rem;font-weight:700;color:var(--primary-color);text-transform:uppercase;margin-bottom:0.5rem;">Assign to</div>
-                <div class="tb-form-grid">
-                    <div><label>Assign By</label><select id="tb-assign-by" onchange="tbUpdateAssignTarget()"><option value="grade">Grade</option><option value="class">Class</option><option value="student">Student</option></select></div>
-                    <div id="tb-grade-row"><label>Grade</label><select id="tb-target-grade"><option value="3">Grade 3</option><option value="4">Grade 4</option><option value="5">Grade 5</option><option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option></select></div>
-                    <div id="tb-class-row" style="display:none;"><label>Class</label><select id="tb-target-class"><option value="3">3</option><option value="4/5">4/5</option><option value="5/6">5/6</option><option value="6">6</option><option value="6/7">6/7</option><option value="7/8">7/8</option><option value="alg1">Alg 1</option><option value="adv-alg1">Adv Alg 1</option><option value="alg2">Alg 2</option><option value="alg2-geo">Alg 2/Geo</option><option value="precalc">Precalc</option><option value="math-analysis">Math Analysis</option></select></div>
-                    <div id="tb-student-row" style="display:none;"><label>Student</label><input type="text" id="tb-target-student" placeholder="First Last"></div>
-                    <div><label>Due Date</label><input type="date" id="tb-due"></div>
-                    <div><label>Timer (min)</label><input type="number" id="tb-timer" placeholder="--" min="1" max="180"></div>
-                    <div><label style="visibility:hidden;">x</label><label style="font-size:0.82rem;text-transform:none;letter-spacing:0;cursor:pointer;"><input type="checkbox" id="tb-redemption" checked> Redemption</label></div>
-                </div>
-                <button class="btn" style="margin-top:0.5rem;" onclick="tbSaveTest()">Save & Assign</button>
             </div>
             <div id="tb-save-status" style="margin-top:0.4rem;font-size:0.82rem;"></div>
-
-            <!-- Save to Library -->
-            <div style="border-top:1px solid var(--border-color-light);margin-top:1rem;padding-top:0.75rem;">
-                <h3>Save to Skill Library</h3>
-                <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.6rem;">Save questions as reusable skills -- they'll appear in the Generate by Skill panel for future tests.</p>
-                <div class="tb-form-grid">
-                    <div><label>Skill Name</label><input type="text" id="lib-skill-name" placeholder="e.g. Adding Fractions"></div>
-                    <div><label>Standard <span style="font-weight:normal;color:var(--text-secondary);">(optional)</span></label><input type="text" id="lib-anchor" placeholder="e.g. 4.NF.3"></div>
-                    <div><label>Category</label><select id="lib-category" onchange="tbUpdateLibGrade()"><option value="pssa">PSSA</option><option value="keystone">Keystone</option></select></div>
-                    <div><label>Grade</label><select id="lib-grade"><option value="3">Grade 3</option><option value="4">Grade 4</option><option value="5">Grade 5</option><option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option></select></div>
-                </div>
-                <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-secondary);">
-                    <label style="cursor:pointer;"><input type="radio" name="lib-which" value="selected" checked> Save selected questions only</label>
-                    &ensp;
-                    <label style="cursor:pointer;"><input type="radio" name="lib-which" value="all"> Save all questions</label>
-                </div>
-                <button class="btn" style="margin-top:0.6rem;" onclick="tbSaveToLibrary()">Save to Library</button>
-                <div id="lib-status" style="margin-top:0.4rem;font-size:0.82rem;"></div>
-            </div>
 
             <!-- Export Settings -->
             <div style="border-top:1px solid var(--border-color-light);margin-top:1rem;padding-top:0.75rem;">
@@ -329,12 +299,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="../js/firebase-config.js" type="module"></script>
-<script src="../js/utils.js"></script>
-<script src="../js/dynamic-gen.js"></script>
-<script src="../js/variable-editor.js"></script>
-<script src="../js/templates.js"></script>
-<script src="../js/extra-templates.js"></script>
-<script src="../js/tb-core.js"></script>
+<script src="../js/utils.js?v=20260417"></script>
+<script src="../js/dynamic-gen.js?v=20260417"></script>
+<script src="../js/variable-editor.js?v=20260417"></script>
+<script src="../js/templates.js?v=20260417"></script>
+<script src="../js/extra-templates.js?v=20260417"></script>
+<script src="../js/tb-core.js?v=20260417"></script>
 
 </body>
 </html>

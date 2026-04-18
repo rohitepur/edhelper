@@ -109,8 +109,9 @@
                 <div class="qb-save-form">
                     <div><span class="admin-label">Skill Name *</span><input type="text" id="qb-ai-name" class="admin-input" placeholder="e.g. One-Step Equations"></div>
                     <div><span class="admin-label">Standard <small style="font-weight:400;text-transform:none;">(optional)</small></span><input type="text" id="qb-ai-anchor" class="admin-input" placeholder="e.g. 7.EE.1"></div>
-                    <div><span class="admin-label">Category</span><select id="qb-ai-cat" class="admin-select" style="width:100%;"><option value="pssa">PSSA</option><option value="keystone">Keystone</option><option value="custom">Custom</option></select></div>
-                    <div><span class="admin-label">Grade</span><select id="qb-ai-grade" class="admin-select" style="width:100%;"><option value="3">Grade 3</option><option value="4">Grade 4</option><option value="5">Grade 5</option><option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8" selected>Grade 8</option><option value="algebra1">Keystone Algebra</option></select></div>
+                    <div><span class="admin-label">Category</span><input type="text" id="qb-ai-cat" class="admin-input" list="qb-cat-list" placeholder="e.g. PSSA, Keystone"></div>
+                    <div><span class="admin-label">Grade</span><input type="text" id="qb-ai-grade" class="admin-input" list="qb-grade-list" placeholder="e.g. 3, 4, 8"></div>
+                    <div><span class="admin-label">Class</span><input type="text" id="qb-ai-class" class="admin-input" list="qb-class-list" placeholder="e.g. alg1, 6/7"></div>
                 </div>
                 <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-secondary);">
                     <label><input type="radio" name="qb-ai-which" value="all" checked> Save all <span id="qb-ai-count">0</span> questions as one template</label>
@@ -153,8 +154,9 @@
                 <div class="qb-save-form">
                     <div><span class="admin-label">Skill Name *</span><input type="text" id="qb-clone-name" class="admin-input" placeholder="e.g. Adding Fractions (Clone)"></div>
                     <div><span class="admin-label">Standard <small style="font-weight:400;text-transform:none;">(optional)</small></span><input type="text" id="qb-clone-anchor" class="admin-input" placeholder="e.g. 4.NF.3"></div>
-                    <div><span class="admin-label">Category</span><select id="qb-clone-cat" class="admin-select" style="width:100%;"><option value="pssa">PSSA</option><option value="keystone">Keystone</option><option value="custom">Custom</option></select></div>
-                    <div><span class="admin-label">Grade</span><select id="qb-clone-grade" class="admin-select" style="width:100%;"><option value="3">Grade 3</option><option value="4">Grade 4</option><option value="5">Grade 5</option><option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option><option value="algebra1">Keystone Algebra</option></select></div>
+                    <div><span class="admin-label">Category</span><input type="text" id="qb-clone-cat" class="admin-input" list="qb-cat-list" placeholder="e.g. PSSA, Keystone"></div>
+                    <div><span class="admin-label">Grade</span><input type="text" id="qb-clone-grade" class="admin-input" list="qb-grade-list" placeholder="e.g. 3, 4, 8"></div>
+                    <div><span class="admin-label">Class</span><input type="text" id="qb-clone-class" class="admin-input" list="qb-class-list" placeholder="e.g. alg1, 6/7"></div>
                 </div>
                 <button class="btn" style="margin-top:0.6rem;" onclick="qbSaveClone()">Save to Question Bank</button>
                 <span id="qb-clone-save-status" class="admin-status"></span>
@@ -166,8 +168,132 @@
             <p style="font-size:0.82rem;color:var(--text-secondary);margin:0 0 0.5rem;">Use <code style="font-size:0.8rem;">{{name}}</code> for variables. The answer expression and options are generated automatically.</p>
             <div id="qb-man-ve"></div>
 
-            <span class="admin-label" style="margin-top:0.5rem;">Hint / Guide <small style="font-weight:400;text-transform:none;">(optional)</small></span>
-            <input type="text" id="qb-man-guide" class="admin-input" placeholder="e.g. Use order of operations &mdash; parentheses first">
+            <!-- Visual Aids -->
+            <div style="border-top:1px solid var(--border-color-light);margin-top:0.75rem;padding-top:0.6rem;">
+                <span class="admin-label" style="margin-top:0;">Visual Aid <small style="font-weight:400;text-transform:none;">(optional)</small></span>
+
+                <!-- Slot selector: which part of the question gets the visual -->
+                <div class="qb-vis-slot-bar">
+                    <span class="qb-vis-slot-lbl">Attach to:</span>
+                    <button class="qb-vis-slot-btn active" id="qb-vis-slot-q" onclick="qbManVisualSlot('question',this)">Question</button>
+                    <button class="qb-vis-slot-btn qb-vis-slot-mc" id="qb-vis-slot-A" onclick="qbManVisualSlot('A',this)">A</button>
+                    <button class="qb-vis-slot-btn qb-vis-slot-mc" id="qb-vis-slot-B" onclick="qbManVisualSlot('B',this)">B</button>
+                    <button class="qb-vis-slot-btn qb-vis-slot-mc" id="qb-vis-slot-C" onclick="qbManVisualSlot('C',this)">C</button>
+                    <button class="qb-vis-slot-btn qb-vis-slot-mc" id="qb-vis-slot-D" onclick="qbManVisualSlot('D',this)">D</button>
+                    <button class="qb-vis-slot-btn" id="qb-vis-slot-answer" style="display:none;" onclick="qbManVisualSlot('answer',this)">Answer</button>
+                </div>
+
+                <!-- Visual type selector -->
+                <div class="qb-vis-bar">
+                    <button class="qb-vis-btn active" onclick="qbManVisualType('none',this)">None</button>
+                    <button class="qb-vis-btn" onclick="qbManVisualType('numberline',this)">Number Line</button>
+                    <button class="qb-vis-btn" onclick="qbManVisualType('shape',this)">Shape</button>
+                    <button class="qb-vis-btn" onclick="qbManVisualType('inequality',this)">Inequality</button>
+                    <button class="qb-vis-btn" onclick="qbManVisualType('coordinate',this)">Coordinate</button>
+                </div>
+
+                <!-- Number Line config -->
+                <div class="qb-vis-config" id="qb-vis-cfg-numberline" style="display:none;">
+                    <div class="qb-vis-row">
+                        <span class="qb-vis-lbl">Start</span>
+                        <input type="number" id="qb-vis-nl-start" class="qb-vis-input" value="-5" onchange="qbManUpdateVisualPreview()">
+                        <span class="qb-vis-lbl" style="min-width:auto;">End</span>
+                        <input type="number" id="qb-vis-nl-end" class="qb-vis-input" value="5" onchange="qbManUpdateVisualPreview()">
+                        <span class="qb-vis-lbl" style="min-width:auto;">Step</span>
+                        <input type="number" id="qb-vis-nl-step" class="qb-vis-input" value="1" min="0.1" step="0.1" onchange="qbManUpdateVisualPreview()">
+                    </div>
+                    <div class="qb-vis-row">
+                        <span class="qb-vis-lbl">Points</span>
+                        <input type="text" id="qb-vis-nl-points" class="qb-vis-input" style="width:200px;" placeholder="e.g. -2, 3" oninput="qbManUpdateVisualPreview()">
+                    </div>
+                    <div class="qb-vis-preview" id="qb-vis-preview-numberline"></div>
+                </div>
+
+                <!-- Shape config -->
+                <div class="qb-vis-config" id="qb-vis-cfg-shape" style="display:none;">
+                    <div class="qb-vis-row">
+                        <span class="qb-vis-lbl">Shape</span>
+                        <select id="qb-vis-shape-type" class="qb-vis-select" onchange="qbShapeTypeChanged()">
+                            <option value="rectangle">Rectangle</option>
+                            <option value="square">Square</option>
+                            <option value="right-triangle">Right Triangle</option>
+                            <option value="iso-triangle">Isosceles Triangle</option>
+                            <option value="circle">Circle</option>
+                            <option value="parallelogram">Parallelogram</option>
+                            <option value="trapezoid">Trapezoid</option>
+                        </select>
+                    </div>
+                    <div class="qb-vis-row">
+                        <span class="qb-vis-lbl" id="qb-vis-dim1-lbl">Width</span>
+                        <input type="text" id="qb-vis-dim1" class="qb-vis-input" value="8" oninput="qbManUpdateVisualPreview()">
+                        <div id="qb-vis-dim2-wrap" style="display:flex;gap:0.45rem;align-items:center;">
+                            <span class="qb-vis-lbl" id="qb-vis-dim2-lbl" style="min-width:auto;">Height</span>
+                            <input type="text" id="qb-vis-dim2" class="qb-vis-input" value="5" oninput="qbManUpdateVisualPreview()">
+                        </div>
+                    </div>
+                    <div class="qb-vis-row" id="qb-vis-dim3-row" style="display:none;">
+                        <span class="qb-vis-lbl" id="qb-vis-dim3-lbl">Top Base</span>
+                        <input type="text" id="qb-vis-dim3" class="qb-vis-input" value="" oninput="qbManUpdateVisualPreview()">
+                    </div>
+                    <div class="qb-vis-preview" id="qb-vis-preview-shape"></div>
+                </div>
+
+                <!-- Inequality config -->
+                <div class="qb-vis-config" id="qb-vis-cfg-inequality" style="display:none;">
+                    <div class="qb-vis-row">
+                        <span class="qb-vis-lbl">Operator</span>
+                        <select id="qb-vis-ineq-op" class="qb-vis-select" onchange="qbIneqOpChanged()">
+                            <option value="gt">x &gt; val</option>
+                            <option value="gte">x &ge; val</option>
+                            <option value="lt">x &lt; val</option>
+                            <option value="lte">x &le; val</option>
+                            <option value="between">between</option>
+                        </select>
+                    </div>
+                    <div class="qb-vis-row">
+                        <span class="qb-vis-lbl">Value</span>
+                        <input type="number" id="qb-vis-ineq-val1" class="qb-vis-input" value="2" onchange="qbManUpdateVisualPreview()">
+                        <span id="qb-vis-ineq-val2-wrap" style="display:none;">
+                            <span class="qb-vis-lbl" style="min-width:auto;">to</span>
+                            <input type="number" id="qb-vis-ineq-val2" class="qb-vis-input" value="5" onchange="qbManUpdateVisualPreview()">
+                        </span>
+                    </div>
+                    <div class="qb-vis-row">
+                        <span class="qb-vis-lbl">Range Start</span>
+                        <input type="number" id="qb-vis-ineq-start" class="qb-vis-input" value="-2" onchange="qbManUpdateVisualPreview()">
+                        <span class="qb-vis-lbl" style="min-width:auto;">End</span>
+                        <input type="number" id="qb-vis-ineq-end" class="qb-vis-input" value="8" onchange="qbManUpdateVisualPreview()">
+                    </div>
+                    <div class="qb-vis-preview" id="qb-vis-preview-inequality"></div>
+                </div>
+
+                <!-- Coordinate config -->
+                <div class="qb-vis-config" id="qb-vis-cfg-coordinate" style="display:none;">
+                    <div class="qb-vis-row">
+                        <span class="qb-vis-lbl">X Range</span>
+                        <input type="number" id="qb-vis-co-xmin" class="qb-vis-input" value="-6" onchange="qbManUpdateVisualPreview()">
+                        <span class="qb-vis-lbl" style="min-width:auto;">to</span>
+                        <input type="number" id="qb-vis-co-xmax" class="qb-vis-input" value="6" onchange="qbManUpdateVisualPreview()">
+                    </div>
+                    <div class="qb-vis-row">
+                        <span class="qb-vis-lbl">Y Range</span>
+                        <input type="number" id="qb-vis-co-ymin" class="qb-vis-input" value="-6" onchange="qbManUpdateVisualPreview()">
+                        <span class="qb-vis-lbl" style="min-width:auto;">to</span>
+                        <input type="number" id="qb-vis-co-ymax" class="qb-vis-input" value="6" onchange="qbManUpdateVisualPreview()">
+                    </div>
+                    <div class="qb-vis-row">
+                        <span class="qb-vis-lbl">Points</span>
+                        <input type="text" id="qb-vis-co-points" class="qb-vis-input" style="width:200px;" placeholder="e.g. (2,3)A (-1,4)B" oninput="qbManUpdateVisualPreview()">
+                    </div>
+                    <div class="qb-vis-row">
+                        <span class="qb-vis-lbl">Lines</span>
+                        <input type="text" id="qb-vis-co-lines" class="qb-vis-input" style="width:200px;" placeholder="e.g. y=2x+1, y=-x+3" oninput="qbManUpdateVisualPreview()">
+                    </div>
+                    <div class="qb-vis-preview" id="qb-vis-preview-coordinate"></div>
+                </div>
+            </div>
+
+            <!-- Guide/hint is now inside the Variable Editor above -->
 
             <div style="margin-top:0.75rem;display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
                 <button class="btn" onclick="qbManAddQuestion()">Add to List</button>
@@ -181,8 +307,9 @@
                 <div class="qb-save-form">
                     <div><span class="admin-label">Skill Name *</span><input type="text" id="qb-man-name" class="admin-input" placeholder="e.g. Order of Operations"></div>
                     <div><span class="admin-label">Standard <small style="font-weight:400;text-transform:none;">(optional)</small></span><input type="text" id="qb-man-anchor" class="admin-input" placeholder="e.g. 5.OA.1"></div>
-                    <div><span class="admin-label">Category</span><select id="qb-man-cat" class="admin-select" style="width:100%;"><option value="pssa">PSSA</option><option value="keystone">Keystone</option><option value="custom">Custom</option></select></div>
-                    <div><span class="admin-label">Grade</span><select id="qb-man-grade" class="admin-select" style="width:100%;"><option value="3">Grade 3</option><option value="4">Grade 4</option><option value="5">Grade 5</option><option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option><option value="algebra1">Keystone Algebra</option></select></div>
+                    <div><span class="admin-label">Category</span><input type="text" id="qb-man-cat" class="admin-input" list="qb-cat-list" placeholder="e.g. PSSA, Keystone"></div>
+                    <div><span class="admin-label">Grade</span><input type="text" id="qb-man-grade" class="admin-input" list="qb-grade-list" placeholder="e.g. 3, 4, 8"></div>
+                    <div><span class="admin-label">Class</span><input type="text" id="qb-man-class" class="admin-input" list="qb-class-list" placeholder="e.g. alg1, 6/7"></div>
                 </div>
                 <button class="btn" style="margin-top:0.6rem;" onclick="qbSaveManual()">Save to Question Bank</button>
                 <span id="qb-man-save-status" class="admin-status"></span>
@@ -217,16 +344,21 @@
         </div>
     </div>
 
+<!-- Shared datalists for metadata fields -->
+<datalist id="qb-cat-list"></datalist>
+<datalist id="qb-grade-list"></datalist>
+<datalist id="qb-class-list"></datalist>
+
 </div><!-- end admin-content -->
 
 <!-- Firebase -->
 <script type="module" src="../js/firebase-config.js"></script>
-<script src="../js/utils.js"></script>
+<script src="../js/utils.js?v=20260417"></script>
 <!-- Dynamic generation helpers -->
-<script src="../js/dynamic-gen.js"></script>
+<script src="../js/dynamic-gen.js?v=20260417"></script>
 <!-- Variable editor component -->
-<script src="../js/variable-editor.js"></script>
+<script src="../js/variable-editor.js?v=20260417"></script>
 <!-- Question Bank core logic -->
-<script src="../js/qb-core.js"></script>
+<script src="../js/qb-core.js?v=20260417"></script>
 </body>
 </html>
